@@ -300,11 +300,13 @@ class Token {
     static EOF = 0x5;
     static KEYWORD = 0x6;
     static OPERATOR = 0x7;
+    static STRING = 0x8;
 
-    constructor(type, value, position) {
+    constructor(type, value, position, error = null) {
         this.type = type;
         this.value = value;
         this.position = position;
+        this.error = error;
     }
 
     toString() {
@@ -315,6 +317,12 @@ class Token {
 const whitespace = /^[ \r]$/;
 const digit = /^[0-9]$/;
 const letter = /^[a-z]$/i;
+
+const cp1251chars = "ЂЃ‚ѓ„…†‡€‰Љ‹ЊЌЋЏђ‘’“”•–—?™љ›њќћџ ЎўЈ¤Ґ¦§Ё©Є«¬­®Ї°±Ііґµ¶·ё№є»јЅѕїАБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдежзийклмнопрстуфхцчшщъыьэюя";
+const cp1251map = {};
+
+for (let i = 0; i < cp1251chars.length; ++i)
+    cp1251map[cp1251chars[i]] = 128 + i;
 
 class Tokenizer {
     line = 0;
@@ -370,6 +378,8 @@ class Tokenizer {
             return this.readName();
         else if (digit.test(ch))
             return this.readNumber();
+        else if (ch === "\"")
+            return this.readString();
         else {
             const { position } = this;
             this.consume();
@@ -414,6 +424,31 @@ class Tokenizer {
         }
 
         return new Token(Token.NUMBER, number, position)
+    }
+
+    readString() {
+        const { position } = this;
+        this.consume();
+
+        let string = "";
+        let error = null;
+
+        let ch;
+        while ((ch = this.peekch()) !== "\"" && ch !== "\n" && ch != null) {
+            this.consume();
+            string += ch;
+
+            if (ch === "\\" && (ch = this.peekch()) !== "\n" && ch != null) {
+                this.consume();
+                string += ch;
+            }
+        }
+        if (ch != null)
+            this.consume();
+        if (ch !== "\"")
+            error = new AsmError(position, `unterminated string '${string}'`);
+
+        return new Token(Token.STRING, JSON.parse(`"${string}"`), position, error);
     }
 }
 
@@ -507,6 +542,14 @@ export class Compiler {
         if (token.type === Token.REGISTER) {
             this.tokenizer.next();
             arg.type = Args.A + registers.indexOf(token.value);
+        } else if (token.type === Token.STRING) {
+            this.tokenizer.next();
+            if (token.error)
+                this.errors.push(token.error);
+            else if (token.value.length !== 1)
+                this.errors.push(new AsmError(token.position, `unexpected string '${token.value}'`));
+            arg.type = Args.BYTE;
+            arg.value = this.getCharCode(token);
         } else if (this.parseExpression((value) => {
             arg.value = value;
             arg.resolveCallback?.(value);
@@ -600,6 +643,18 @@ export class Compiler {
         return this.bytes.length < 256 ? this.bytes.length : (this.bytes.length & 0xFF) | 0x80;
     }
 
+    getCharCode(token, index = 0) {
+        let charCode = token.value.charCodeAt(index);
+        if (charCode < 128)
+            return charCode;
+        charCode = cp1251map[token.value[index]];
+        if (charCode == null) {
+            const position = [token.position[0], token.position[1] + index + 1];
+            this.errors.push(new AsmError(position, `unexpected character '${token.value[index]}'`));
+        }
+        return charCode || 0;
+    }
+
     compile() {
         const names = {};
 
@@ -649,13 +704,31 @@ export class Compiler {
                 if (token.type === Token.KEYWORD && token.value === "db") {
                     this.resolveReference(name, this.getCurrentAddress());
                     do {
-                        const offset = this.bytes.length;
-                        this.bytes.push(0x00);
-                        this.parseExpression((value) => this.bytes[offset] = value, true);
+                        if ((token = this.tokenizer.lookahead()).type === Token.STRING) {
+                            this.tokenizer.next();
+                            if (token.error)
+                                this.errors.push(token.error);
+                            else
+                                for (let i = 0; i < token.value.length; ++i)
+                                    this.bytes.push(this.getCharCode(token, i));
+                        } else {
+                            const offset = this.bytes.length;
+                            this.bytes.push(0x00);
+                            this.parseExpression((value) => this.bytes[offset] = value, true);
+                        }
                     } while ((token = this.tokenizer.lookahead()).type === Token.CHAR && token.value === "," && this.tokenizer.next())
-                } else if (token.type === Token.KEYWORD && token.value === "equ")
-                    this.parseExpression((value) => this.resolveReference(name, value), true);
-                else if (token.type === Token.CHAR && token.value === ":")
+                } else if (token.type === Token.KEYWORD && token.value === "equ") {
+                    if ((token = this.tokenizer.lookahead()).type === Token.STRING) {
+                        this.tokenizer.next();
+                        if (token.error)
+                            this.errors.push(token.error);
+                        else if (token.value.length !== 1)
+                            this.errors.push(new AsmError(token.position, `unexpected string '${token.value}'`));
+                        else
+                            this.bytes.push(this.getCharCode(token));
+                    } else
+                        this.parseExpression((value) => this.resolveReference(name, value), true);
+                } else if (token.type === Token.CHAR && token.value === ":")
                     this.resolveReference(name, this.getCurrentAddress());
                 else {
                     this.errors.push(new AsmError(token.position, `unexpected ${token}`));
