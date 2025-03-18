@@ -60,7 +60,7 @@ const commands = [
     new Command("and", [Args.B, Args.A], 0x0D),
     new Command("and", [Args.C, Args.A], 0x0E),
     new Command("and", [Args.D, Args.A], 0x0F),
-    
+
     new Command("or", [Args.A, Args.ZERO], 0x10),
     new Command("or", [Args.A, Args.B], 0x11),
     new Command("or", [Args.A, Args.C], 0x12),
@@ -171,7 +171,7 @@ const commands = [
     new Command("ldi", [Args.B, Args.BYTE], 0x8D),
     new Command("ldi", [Args.C, Args.BYTE], 0x8E),
     new Command("ldi", [Args.D, Args.BYTE], 0x8F),
-    
+
     new Command("ld", [Args.A, Args.A], 0x90),
     new Command("ld", [Args.B, Args.A], 0x91),
     new Command("ld", [Args.C, Args.A], 0x92),
@@ -343,7 +343,7 @@ class Tokenizer {
         ++this.offset;
     }
 
-    lookahead(skipNewline=true) {
+    lookahead(skipNewline = true) {
         const { offset, line, column } = this;
         const token = this.next(skipNewline);
         this.offset = offset;
@@ -352,11 +352,11 @@ class Tokenizer {
         return token;
     }
 
-    next(skipNewline=true) {
+    next(skipNewline = true) {
         while (whitespace.test(this.peekch()) || (skipNewline && this.peekch() === "\n") || this.peekch() === ";") {
             while (whitespace.test(this.peekch()) || (skipNewline && this.peekch() === "\n"))
                 this.consume();
-            
+
             while (this.peekch() === ";") {
                 this.consume();
                 while (this.peekch() !== "\n" && this.peekch() != null)
@@ -502,7 +502,7 @@ export class Compiler {
         return args;
     }
 
-    parseArg(args, required=false) {
+    parseArg(args, required = false) {
         const token = this.tokenizer.lookahead();
         const arg = { position: token.position };
         if (token.type === Token.REGISTER) {
@@ -522,7 +522,7 @@ export class Compiler {
         return true;
     }
 
-    parseValue(resolveCallback, required=false) {
+    parseValue(resolveCallback, required = false) {
         let token = this.tokenizer.lookahead();
         if (token.type === Token.NAME) {
             const value = this.names[token.value];
@@ -561,7 +561,7 @@ export class Compiler {
         }
     }
 
-    parseExpression(resolveCallback, required=false) {
+    parseExpression(resolveCallback, required = false) {
         const ref = new RefExpression(resolveCallback);
 
         if (this.parseValue(ref.set, required)) {
@@ -587,7 +587,7 @@ export class Compiler {
 
     resolveReference(name, value) {
         this.names[name] = value;
-        
+
         for (let i = 0; i < this.refs.length; ++i) {
             const ref = this.refs[i];
             if (ref.name === name) {
@@ -624,7 +624,7 @@ export class Compiler {
                 }
 
                 this.bytes.push(opcode);
-                
+
                 const argc = args.length;
                 for (let i = 0; i < argc; ++i) {
                     const arg = args[i];
@@ -665,7 +665,7 @@ export class Compiler {
                 }
             } else
                 this.errors.push(new AsmError(token.position, `unexpected ${token}`));
-        
+
         for (const { name, position } of this.refs)
             this.errors.push(new AsmError(position, `unresolved ${name}`));
 
