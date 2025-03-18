@@ -1,4 +1,4 @@
-import { Compiler } from "./asm.js";
+import { Compiler, cp1251chars, cp1251map } from "./asm.js";
 import { buildDisk } from "./builder.js";
 
 function compile(asm) {
@@ -24,13 +24,55 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function update() {
         if (source.value.trim())
-            history.pushState(null, "", `${location.pathname}?code=${encodeURIComponent(source.value)}`);
+            history.replaceState(null, "", `${location.pathname}#code=${encodeToUrl(source.value)}`);
         else
-            history.pushState(null, "", location.pathname);
+            history.replaceState(null, "", location.pathname);
         output.value = compile(source.value);
     }
-
-    source.value = new URLSearchParams(location.search).get("code");
     source.addEventListener("input", update);
-    update();
+
+    source.value = decodeFromUrl(new URLSearchParams(location.hash.substring(1)).get("code") || "");
+    output.value = compile(source.value);
 });
+
+function encodeToUrl(value) {
+    const tabbed = value.replace(/    /g, "\x00");
+    const buffer = [];
+    let charCode;
+    let cp1251code;
+    for (let i = 0; i < tabbed.length; ++i) {
+        if ((charCode = tabbed.charCodeAt(i)) < 128)
+            buffer.push(charCode);
+        else if (cp1251code = cp1251map[tabbed[i]])
+            buffer.push(cp1251code);
+        else
+            buffer.push(0x01, (charCode >> 8) & 0xFF, charCode & 0xFF);
+    }
+    return btoa(String.fromCharCode(...new Uint8Array(buffer)))
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, "");
+}
+
+function decodeFromUrl(code) {
+    const base64 = code
+        .replace(/-/g, "+")
+        .replace(/_/g, "/");
+    const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+    let value = "";
+    let charCode;
+    for (let i = 0; i < bytes.length; ++i) {
+        charCode = bytes[i];
+        if (charCode === 0)
+            value += "    ";
+        else if (charCode === 1) {
+            if (bytes.length < i + 3)
+                return value;
+            value += String.fromCharCode((bytes[++i] << 8) | bytes[++i]);
+        } else if (charCode < 128)
+            value += String.fromCharCode(charCode);
+        else
+            value += cp1251chars[charCode - 128];
+    }
+    return value;
+}
