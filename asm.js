@@ -436,19 +436,35 @@ class Tokenizer {
         let ch;
         while ((ch = this.peekch()) !== "\"" && ch !== "\n" && ch != null) {
             this.consume();
-            string += ch;
 
-            if (ch === "\\" && (ch = this.peekch()) !== "\n" && ch != null) {
+            if (ch === "\\") {
+                ch = this.peekch();
+                if (ch === "\n" || ch == null)
+                    break;
                 this.consume();
+                switch (ch) {
+                    case "\\": string += ch; break;
+                    case "\"": string += ch; break;
+                    case "a": string += "\x07"; break;
+                    case "b": string += "\b"; break;
+                    case "t": string += "\t"; break;
+                    case "n": string += "\n"; break;
+                    case "v": string += "\v"; break;
+                    case "f": string += "\f"; break;
+                    case "r": string += "\r"; break;
+                    default:
+                        const sequencePosition = [this.position[0], this.position[1] - 2];
+                        error ??= new AsmError(sequencePosition, `unexpected escape sequence '\\${ch}'`);
+                }
+            } else
                 string += ch;
-            }
         }
         if (ch != null)
             this.consume();
         if (ch !== "\"")
-            error = new AsmError(position, `unterminated string '${string}'`);
+            error ??= new AsmError(position, `unterminated string "${escapeStr(string)}"`);
 
-        return new Token(Token.STRING, JSON.parse(`"${string}"`), position, error);
+        return new Token(Token.STRING, string, position, error);
     }
 }
 
@@ -544,12 +560,13 @@ export class Compiler {
             arg.type = Args.A + registers.indexOf(token.value);
         } else if (token.type === Token.STRING) {
             this.tokenizer.next();
+            arg.type = Args.BYTE;
             if (token.error)
                 this.errors.push(token.error);
             else if (token.value.length !== 1)
-                this.errors.push(new AsmError(token.position, `unexpected string '${token.value}'`));
-            arg.type = Args.BYTE;
-            arg.value = this.getCharCode(token);
+                this.errors.push(new AsmError(token.position, `unexpected string "${escapeStr(token.value)}"`));
+            else
+                arg.value = this.getCharCode(token);
         } else if (this.parseExpression((value) => {
             arg.value = value;
             arg.resolveCallback?.(value);
@@ -723,7 +740,7 @@ export class Compiler {
                         if (token.error)
                             this.errors.push(token.error);
                         else if (token.value.length !== 1)
-                            this.errors.push(new AsmError(token.position, `unexpected string '${token.value}'`));
+                            this.errors.push(new AsmError(token.position, `unexpected string "${escapeStr(token.value)}"`));
                         else
                             this.bytes.push(this.getCharCode(token));
                     } else
@@ -748,4 +765,17 @@ export class Compiler {
         if (this.bytes.length > 32768)
             this.errors.push(new AsmError([0, 0], "memory overflow"));
     }
+}
+
+function escapeStr(string) {
+    return string
+        .replace(/\\/g, "\\\\")
+        .replace(/\"/g, "\\\"")
+        .replace(/\x07/g, "\\a")
+        .replace(/\x08/g, "\\b")
+        .replace(/\t/g, "\\t")
+        .replace(/\n/g, "\\n")
+        .replace(/\v/g, "\\v")
+        .replace(/\f/g, "\\f")
+        .replace(/\r/g, "\\r");
 }
