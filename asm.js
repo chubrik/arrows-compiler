@@ -9,9 +9,9 @@ const Args = {
 const instructions = [
     "adc", "add", "and", "clr", "dec", "hlt", "inc", "jc",
     "jmp", "jnc", "jno", "jns", "jnz", "jo", "js", "jz",
-    "ld", "ldi", "mov", "neg", "not", "or", "rcl", "rcr",
-    "rnd", "sar", "sbb", "shl", "shr", "st", "sub", "test",
-    "xor"
+    "ld", "ldi", "mov", "neg", "nop", "not", "or", "rcl",
+    "rcr", "rnd", "sar", "sbb", "shl", "shr", "st", "sub",
+    "test", "xor"
 ];
 
 const registers = ["a", "b", "c", "d"];
