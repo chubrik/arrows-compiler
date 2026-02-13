@@ -593,6 +593,8 @@ export class Compiler {
             resolveCallback(this.parseNumber(token));
         else if (token.type === Token.CHAR && token.value === "$")
             resolveCallback(this.getCurrentAddress());
+        else if (token.type === Token.STRING && token.value.length === 1)
+            resolveCallback(this.getCharCode(token));
         else {
             if (required)
                 this.errors.push(new AsmError(token.position, `unexpected ${token}`));
@@ -734,18 +736,9 @@ export class Compiler {
                             this.parseExpression((value) => this.bytes[offset] = value, true);
                         }
                     } while ((token = this.tokenizer.lookahead()).type === Token.CHAR && token.value === "," && this.tokenizer.next())
-                } else if (token.type === Token.KEYWORD && token.value === "equ") {
-                    if ((token = this.tokenizer.lookahead()).type === Token.STRING) {
-                        this.tokenizer.next();
-                        if (token.error)
-                            this.errors.push(token.error);
-                        else if (token.value.length !== 1)
-                            this.errors.push(new AsmError(token.position, `unexpected string "${escapeStr(token.value)}"`));
-                        else
-                            this.bytes.push(this.getCharCode(token));
-                    } else
-                        this.parseExpression((value) => this.resolveReference(name, value), true);
-                } else if (token.type === Token.CHAR && token.value === ":")
+                } else if (token.type === Token.KEYWORD && token.value === "equ")
+                    this.parseExpression((value) => this.resolveReference(name, value), true);
+                else if (token.type === Token.CHAR && token.value === ":")
                     this.resolveReference(name, this.getCurrentAddress());
                 else {
                     this.errors.push(new AsmError(token.position, `unexpected ${token}`));
