@@ -1,7 +1,7 @@
 import { Compiler, cp1251chars, cp1251map } from "./asm.js";
 import { buildDisk } from "./builder.js";
 
-function compile(asm) {
+function compile(asm, mode) {
     const compiler = new Compiler(asm);
     compiler.compile();
 
@@ -15,24 +15,50 @@ function compile(asm) {
     if (compiler.bytes.length === 0)
         return "";
 
+    if (mode === "hex")
+        return compiler.bytes.map(byte => "0x" + byte.toString(16).toUpperCase().padStart(2, "0")).join(", ");
+
     return buildDisk(compiler.bytes);
 }
 
 document.addEventListener("DOMContentLoaded", () => {
     const source = document.getElementById("source");
     const output = document.getElementById("output");
+    const outputMode = document.getElementById("output-mode");
 
     function update() {
+        const params = new URLSearchParams();
+        if (outputMode.value !== "arrows")
+            params.set("mode", outputMode.value);
         if (source.value.trim())
-            history.replaceState(null, "", `${location.pathname}#code=${encodeToUrl(source.value)}`);
-        else
-            history.replaceState(null, "", location.pathname);
-        output.value = compile(source.value);
+            params.set("code", encodeToUrl(source.value));
+        const hash = params.toString();
+        history.replaceState(null, "", hash ? `${location.pathname}#${hash}` : location.pathname);
+        output.value = compile(source.value, outputMode.value);
     }
     source.addEventListener("input", update);
+    outputMode.addEventListener("change", update);
 
-    source.value = decodeFromUrl(new URLSearchParams(location.hash.substring(1)).get("code") || "");
-    output.value = compile(source.value);
+    const copyButton = document.getElementById("copy");
+    let copyResetTimer;
+    copyButton.addEventListener("click", async () => {
+        try {
+            await navigator.clipboard.writeText(output.value);
+        } catch {
+            output.select();
+            document.execCommand("copy");
+        }
+        copyButton.textContent = "Copied!";
+        clearTimeout(copyResetTimer);
+        copyResetTimer = setTimeout(() => copyButton.textContent = "Copy", 1500);
+    });
+
+    const params = new URLSearchParams(location.hash.substring(1));
+    source.value = decodeFromUrl(params.get("code") || "");
+    const mode = params.get("mode");
+    if (mode && [...outputMode.options].some(option => option.value === mode))
+        outputMode.value = mode;
+    output.value = compile(source.value, outputMode.value);
 });
 
 function encodeToUrl(value) {

@@ -7,4 +7,32 @@ body {
 textarea {
     flex: 1;
     resize: none;
+    font-family: ui-monospace, Consolas, Menlo, monospace;
+    font-size: 14px;
+}
+
+#output-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+#output-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-left: 6px;
+    font-family: sans-serif;
+    font-size: 14px;
+}
+
+#output-mode {
+    flex: 1;
+    padding: 4px;
+    font-size: 14px;
+}
+
+#copy {
+    padding: 4px 10px;
+    font-size: 14px;
 }
