@@ -314,7 +314,7 @@ class Token {
     }
 }
 
-const whitespace = /^[ \r]$/;
+const whitespace = /^[ \r\uFEFF]$/;
 const digit = /^[0-9]$/;
 const letter = /^[a-z]$/i;
 

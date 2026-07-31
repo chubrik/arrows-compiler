@@ -31,13 +31,22 @@ document.addEventListener("DOMContentLoaded", () => {
         if (outputMode.value !== "arrows")
             params.set("mode", outputMode.value);
         if (source.value.trim())
-            params.set("code", encodeToUrl(source.value));
+            params.set("code", encodeToUrl(stripBom(source.value)));
         const hash = params.toString();
         history.replaceState(null, "", hash ? `${location.pathname}#${hash}` : location.pathname);
         output.value = compile(source.value, outputMode.value);
     }
     source.addEventListener("input", update);
     outputMode.addEventListener("change", update);
+
+    source.addEventListener("paste", (event) => {
+        const text = event.clipboardData?.getData("text/plain") ?? "";
+        if (!text.includes("\uFEFF"))
+            return;
+        event.preventDefault();
+        source.setRangeText(stripBom(text), source.selectionStart, source.selectionEnd, "end");
+        update();
+    });
 
     const copyButton = document.getElementById("copy");
     let copyResetTimer;
@@ -54,12 +63,16 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     const params = new URLSearchParams(location.hash.substring(1));
-    source.value = decodeFromUrl(params.get("code") || "");
+    source.value = stripBom(decodeFromUrl(params.get("code") || ""));
     const mode = params.get("mode");
     if (mode && [...outputMode.options].some(option => option.value === mode))
         outputMode.value = mode;
     output.value = compile(source.value, outputMode.value);
 });
+
+function stripBom(value) {
+    return value.replace(/\uFEFF/g, "");
+}
 
 function encodeToUrl(value) {
     const tabbed = value.replace(/    /g, "\x00");
