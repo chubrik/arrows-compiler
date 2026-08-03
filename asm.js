@@ -530,6 +530,7 @@ export class Compiler {
     errors = [];
     refs = [];
     names = {};
+    statementAddress = 0;
 
     constructor(source) {
         this.tokenizer = new Tokenizer(source);
@@ -592,7 +593,7 @@ export class Compiler {
         } else if (token.type === Token.NUMBER)
             resolveCallback(this.parseNumber(token));
         else if (token.type === Token.CHAR && token.value === "$")
-            resolveCallback(this.getCurrentAddress());
+            resolveCallback(this.getByteAddress(this.statementAddress));
         else if (token.type === Token.STRING && token.value.length === 1)
             resolveCallback(this.getCharCode(token));
         else {
@@ -673,8 +674,8 @@ export class Compiler {
         }
     }
 
-    getCurrentAddress() {
-        return this.bytes.length < 256 ? this.bytes.length : (this.bytes.length & 0xFF) | 0x80;
+    getByteAddress(offset) {
+        return offset < 256 ? offset : (offset & 0xFF) | 0x80;
     }
 
     getCharCode(token, index = 0) {
@@ -698,6 +699,7 @@ export class Compiler {
                 const instruction = token.value;
                 const { position } = token;
 
+                this.statementAddress = this.bytes.length;
                 const args = this.parseArgs();
                 if (args == null)
                     continue;
@@ -733,10 +735,11 @@ export class Compiler {
                 const name = token.value;
                 const { position } = token;
 
+                this.statementAddress = this.bytes.length;
                 token = this.tokenizer.next();
 
                 if (token.type === Token.KEYWORD && token.value === "db") {
-                    this.resolveReference(name, this.getCurrentAddress());
+                    this.resolveReference(name, this.getByteAddress(this.bytes.length));
                     do {
                         if ((token = this.tokenizer.lookahead()).type === Token.STRING) {
                             this.tokenizer.next();
@@ -754,7 +757,7 @@ export class Compiler {
                 } else if (token.type === Token.KEYWORD && token.value === "equ")
                     this.parseExpression((value) => this.resolveReference(name, value), true);
                 else if (token.type === Token.CHAR && token.value === ":")
-                    this.resolveReference(name, this.getCurrentAddress());
+                    this.resolveReference(name, this.getByteAddress(this.bytes.length));
                 else {
                     this.errors.push(new AsmError(token.position, `unexpected ${token}`));
                     continue;
