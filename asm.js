@@ -559,15 +559,13 @@ export class Compiler {
         if (token.type === Token.REGISTER) {
             this.tokenizer.next();
             arg.type = Args.A + registers.indexOf(token.value);
-        } else if (token.type === Token.STRING) {
+        } else if (token.type === Token.STRING && (token.error || token.value.length !== 1)) {
             this.tokenizer.next();
             arg.type = Args.BYTE;
             if (token.error)
                 this.errors.push(token.error);
-            else if (token.value.length !== 1)
-                this.errors.push(new AsmError(token.position, `unexpected string "${escapeStr(token.value)}"`));
             else
-                arg.value = this.getCharCode(token);
+                this.errors.push(new AsmError(token.position, `unexpected string "${escapeStr(token.value)}"`));
         } else if (this.parseExpression((value) => {
             arg.value = value;
             arg.resolveCallback?.(value);
