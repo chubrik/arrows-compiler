@@ -1,7 +1,7 @@
 import { Compiler, cp1251chars, cp1251map } from "./asm.js";
 import { buildDisk } from "./builder.js";
 
-function compile(asm, mode) {
+function compile(asm, format) {
     const compiler = new Compiler(asm);
     compiler.compile();
 
@@ -15,7 +15,7 @@ function compile(asm, mode) {
     if (compiler.bytes.length === 0)
         return "";
 
-    if (mode === "hex")
+    if (format === "hex")
         return compiler.bytes.map(byte => "0x" + byte.toString(16).toUpperCase().padStart(2, "0")).join(", ");
 
     return buildDisk(compiler.bytes);
@@ -24,20 +24,20 @@ function compile(asm, mode) {
 document.addEventListener("DOMContentLoaded", () => {
     const source = document.getElementById("source");
     const output = document.getElementById("output");
-    const outputMode = document.getElementById("output-mode");
+    const outputFormat = document.getElementById("output-format");
 
     function update() {
         const params = new URLSearchParams();
-        if (outputMode.value !== "arrows")
-            params.set("mode", outputMode.value);
+        if (outputFormat.value !== "arrows")
+            params.set("output", outputFormat.value);
         if (source.value.trim())
             params.set("code", encodeToUrl(stripBom(source.value)));
         const hash = params.toString();
         history.replaceState(null, "", hash ? `${location.pathname}#${hash}` : location.pathname);
-        output.value = compile(source.value, outputMode.value);
+        output.value = compile(source.value, outputFormat.value);
     }
     source.addEventListener("input", update);
-    outputMode.addEventListener("change", update);
+    outputFormat.addEventListener("change", update);
 
     source.addEventListener("paste", (event) => {
         const text = event.clipboardData?.getData("text/plain") ?? "";
@@ -64,10 +64,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const params = new URLSearchParams(location.hash.substring(1));
     source.value = stripBom(decodeFromUrl(params.get("code") || ""));
-    const mode = params.get("mode");
-    if (mode && [...outputMode.options].some(option => option.value === mode))
-        outputMode.value = mode;
-    output.value = compile(source.value, outputMode.value);
+    const format = params.get("output");
+    if (format && [...outputFormat.options].some(option => option.value === format))
+        outputFormat.value = format;
+    output.value = compile(source.value, outputFormat.value);
 });
 
 function stripBom(value) {
