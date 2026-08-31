@@ -92,9 +92,41 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     editor.onDidPaste((event) => {
-        const pasted = editor.getModel().getValueInRange(event.range);
+        const model = editor.getModel();
+        const pasted = model.getValueInRange(event.range);
         if (pasted.includes("\uFEFF"))
             editor.executeEdits("strip-bom", [{ range: event.range, text: stripBom(pasted) }]);
+
+        // Trim the trailing whitespace on every line
+        const trims = [];
+        for (let i = 1; i <= model.getLineCount(); ++i) {
+            const line = model.getLineContent(i);
+            const trailing = line.match(/[ \t]+$/);
+            if (trailing)
+                trims.push({
+                    range: new monaco.Range(i, line.length - trailing[0].length + 1, i, line.length + 1),
+                    text: ""
+                });
+        }
+        if (trims.length > 0)
+            editor.executeEdits("trim-trailing", trims);
+
+        // After a paste the document should end with exactly one newline
+        const value = model.getValue();
+        const trailing = value.match(/\n*$/)[0].length;
+        if (trailing !== 1) {
+            const start = model.getPositionAt(value.length - trailing);
+            const end = model.getPositionAt(value.length);
+            editor.executeEdits("normalize-eol", [{
+                range: new monaco.Range(start.lineNumber, start.column, end.lineNumber, end.column),
+                text: "\n"
+            }]);
+        }
+
+        // Monaco has already scrolled to where the paste ended, a line above the newline just
+        // appended; this handler runs after everything the paste set in motion, so the last
+        // word on where to look is ours
+        editor.revealPosition(editor.getPosition());
     });
 
     const copyButton = document.getElementById("copy");
