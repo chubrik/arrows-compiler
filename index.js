@@ -51,6 +51,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         monaco.editor.setModelMarkers(model, "arrows", markers);
     }
 
+    function showResult({ text, errors }) {
+        output.value = text;
+        output.classList.toggle("errors", errors.length > 0);
+        setErrorMarkers(errors);
+    }
+
     function update() {
         const source = editor.getValue();
         const params = new URLSearchParams();
@@ -61,13 +67,29 @@ document.addEventListener("DOMContentLoaded", async () => {
         const hash = params.toString();
         history.replaceState(null, "", hash ? `${location.pathname}#${hash}` : location.pathname);
 
-        const { text, errors } = compile(source, outputFormat.value);
-        output.value = text;
-        setErrorMarkers(errors);
+        showResult(compile(source, outputFormat.value));
     }
 
     editor.onDidChangeModelContent(update);
     outputFormat.addEventListener("change", update);
+
+    // A click on an error line in the output jumps to its position in the code;
+    // a click anywhere else in the failed output jumps to the first error
+    const errorPattern = /^Error at line (\d+), column (\d+)/;
+    output.addEventListener("click", () => {
+        if (!output.classList.contains("errors"))
+            return;
+        const lines = output.value.split("\n");
+        const lineIndex = output.value.substring(0, output.selectionStart).split("\n").length - 1;
+        const match = lines[lineIndex]?.match(errorPattern)
+            ?? lines.map(line => line.match(errorPattern)).find(Boolean);
+        if (!match)
+            return;
+        const position = { lineNumber: +match[1], column: +match[2] };
+        editor.setPosition(position);
+        editor.revealPositionInCenterIfOutsideViewport(position);
+        editor.focus();
+    });
 
     editor.onDidPaste((event) => {
         const pasted = editor.getModel().getValueInRange(event.range);
@@ -89,9 +111,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         copyResetTimer = setTimeout(() => copyButton.textContent = "Copy", 1500);
     });
 
-    const { text, errors } = compile(initialSource, outputFormat.value);
-    output.value = text;
-    setErrorMarkers(errors);
+    showResult(compile(initialSource, outputFormat.value));
     editor.focus();
 });
 
