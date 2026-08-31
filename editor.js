@@ -18,6 +18,7 @@ export function createEditor(container, initialValue) {
             const monaco = window.monaco;
             registerLanguage(monaco);
             registerCompletion(monaco);
+            registerDefinition(monaco);
 
             const editor = monaco.editor.create(container, {
                 value: initialValue,
@@ -136,19 +137,43 @@ function registerCompletion(monaco) {
     });
 }
 
+function registerDefinition(monaco) {
+    monaco.languages.registerDefinitionProvider(languageId, {
+        provideDefinition: (model, position) => {
+            const prefix = model.getLineContent(position.lineNumber).substring(0, position.column - 1);
+            if (prefix.includes(";") || (prefix.split("\"").length - 1) % 2 === 1)
+                return null;
+
+            const word = model.getWordAtPosition(position);
+            if (!word || reservedNames.has(word.word))
+                return null;
+
+            const info = collectNames(monaco, model).get(word.word);
+            if (!info)
+                return null;
+            return {
+                uri: model.uri,
+                range: new monaco.Range(info.lineNumber, info.column, info.lineNumber, info.column + word.word.length)
+            };
+        }
+    });
+}
+
 const reservedNames = new Set([...instructions, ...registers, ...keywords]);
 
 function collectNames(monaco, model) {
     const names = new Map();
     for (let i = 1; i <= model.getLineCount(); ++i) {
         const line = model.getLineContent(i);
+        const add = (name, kind, detail) =>
+            names.set(name, { kind, detail, lineNumber: i, column: line.search(/\S/) + 1 });
         let match;
         if ((match = line.match(/^\s*([a-zA-Z_]\w*)\s*:/)) && !reservedNames.has(match[1]))
-            names.set(match[1], { kind: monaco.languages.CompletionItemKind.Function, detail: "label" });
+            add(match[1], monaco.languages.CompletionItemKind.Function, "label");
         else if ((match = line.match(/^\s*([a-zA-Z_]\w*)\s+db\b/)) && !reservedNames.has(match[1]))
-            names.set(match[1], { kind: monaco.languages.CompletionItemKind.Variable, detail: "db" });
+            add(match[1], monaco.languages.CompletionItemKind.Variable, "db");
         else if ((match = line.match(/^\s*([a-zA-Z_]\w*)\s+equ\b\s*(.*)/)) && !reservedNames.has(match[1]))
-            names.set(match[1], { kind: monaco.languages.CompletionItemKind.Constant, detail: ("equ " + match[2]).trim() });
+            add(match[1], monaco.languages.CompletionItemKind.Constant, ("equ " + match[2]).trim());
     }
     return names;
 }
