@@ -21,6 +21,9 @@ export function createEditor(container, initialValue) {
             registerCompletion(monaco);
             registerDefinition(monaco);
             registerHover(monaco);
+            registerOccurrences(monaco);
+            registerReferences(monaco);
+            registerRename(monaco);
 
             const editor = monaco.editor.create(container, {
                 value: initialValue,
@@ -142,12 +145,8 @@ function registerCompletion(monaco) {
 function registerDefinition(monaco) {
     monaco.languages.registerDefinitionProvider(languageId, {
         provideDefinition: (model, position) => {
-            const prefix = model.getLineContent(position.lineNumber).substring(0, position.column - 1);
-            if (prefix.includes(";") || (prefix.split("\"").length - 1) % 2 === 1)
-                return null;
-
-            const word = model.getWordAtPosition(position);
-            if (!word || reservedNames.has(word.word))
+            const word = nameAt(model, position);
+            if (!word)
                 return null;
 
             const info = collectNames(monaco, model).get(word.word);
@@ -235,7 +234,98 @@ function parseNumberLiteral(text) {
     return null;
 }
 
+function registerOccurrences(monaco) {
+    monaco.languages.registerDocumentHighlightProvider(languageId, {
+        provideDocumentHighlights: (model, position) => {
+            const word = nameAt(model, position);
+            if (!word)
+                return null;
+            const info = collectNames(monaco, model).get(word.word);
+            return findOccurrences(monaco, model, word.word).map(range => ({
+                range,
+                kind: info && range.startLineNumber === info.lineNumber && range.startColumn === info.column
+                    ? monaco.languages.DocumentHighlightKind.Write
+                    : monaco.languages.DocumentHighlightKind.Read
+            }));
+        }
+    });
+}
+
+function registerReferences(monaco) {
+    monaco.languages.registerReferenceProvider(languageId, {
+        provideReferences: (model, position) => {
+            const word = nameAt(model, position);
+            if (!word)
+                return null;
+            return findOccurrences(monaco, model, word.word).map(range => ({ uri: model.uri, range }));
+        }
+    });
+}
+
+function registerRename(monaco) {
+    monaco.languages.registerRenameProvider(languageId, {
+        provideRenameEdits: (model, position, newName) => {
+            const word = nameAt(model, position);
+            if (!word)
+                return { edits: [], rejectReason: "You can only rename labels and constants" };
+            if (!/^[a-zA-Z_]\w*$/.test(newName) || reservedNames.has(newName))
+                return { edits: [], rejectReason: `'${newName}' is not a valid name` };
+            return {
+                edits: findOccurrences(monaco, model, word.word).map(range => ({
+                    resource: model.uri,
+                    textEdit: { range, text: newName },
+                    versionId: model.getVersionId()
+                }))
+            };
+        },
+        resolveRenameLocation: (model, position) => {
+            const word = nameAt(model, position);
+            if (!word)
+                return {
+                    range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+                    text: "",
+                    rejectReason: "You can only rename labels and constants"
+                };
+            return {
+                range: new monaco.Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn),
+                text: word.word
+            };
+        }
+    });
+}
+
 const reservedNames = new Set([...instructions, ...registers, ...keywords]);
+
+// A word at the position, unless it is a comment, a string, a number or a reserved name
+function nameAt(model, position) {
+    const prefix = model.getLineContent(position.lineNumber).substring(0, position.column - 1);
+    if (prefix.includes(";") || (prefix.split("\"").length - 1) % 2 === 1)
+        return null;
+
+    const word = model.getWordAtPosition(position);
+    if (!word || reservedNames.has(word.word) || /^\d/.test(word.word))
+        return null;
+    return word;
+}
+
+// Blank out string literals and comments, preserving the column positions
+function cleanLine(line) {
+    return line
+        .replace(/"(?:[^"\\]|\\.)*("|$)/g, match => " ".repeat(match.length))
+        .replace(/;.*/, match => " ".repeat(match.length));
+}
+
+function findOccurrences(monaco, model, name) {
+    const ranges = [];
+    const pattern = new RegExp(`(?<!\\w)${name}(?!\\w)`, "g");
+    for (let i = 1; i <= model.getLineCount(); ++i) {
+        const line = cleanLine(model.getLineContent(i));
+        let match;
+        while (match = pattern.exec(line))
+            ranges.push(new monaco.Range(i, match.index + 1, i, match.index + 1 + name.length));
+    }
+    return ranges;
+}
 
 function collectNames(monaco, model) {
     const names = new Map();
