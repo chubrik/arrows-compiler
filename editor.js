@@ -1,4 +1,5 @@
-import { instructions, registers, keywords } from "./asm.js";
+import { Compiler, commands, instructions, registers, keywords } from "./asm.js";
+import { instructionDocs } from "./docs.js";
 
 const monacoBase = "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/";
 const languageId = "arrows-asm";
@@ -19,6 +20,7 @@ export function createEditor(container, initialValue) {
             registerLanguage(monaco);
             registerCompletion(monaco);
             registerDefinition(monaco);
+            registerHover(monaco);
 
             const editor = monaco.editor.create(container, {
                 value: initialValue,
@@ -157,6 +159,80 @@ function registerDefinition(monaco) {
             };
         }
     });
+}
+
+const argTypeNames = ["a", "b", "c", "d", "addr"]; // indexed by the Args values
+
+function registerHover(monaco) {
+    monaco.languages.registerHoverProvider(languageId, {
+        provideHover: (model, position) => {
+            const prefix = model.getLineContent(position.lineNumber).substring(0, position.column - 1);
+            if (prefix.includes(";") || (prefix.split("\"").length - 1) % 2 === 1)
+                return null;
+
+            const word = model.getWordAtPosition(position);
+            if (!word)
+                return null;
+            const range = new monaco.Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
+            const name = word.word;
+            const markdown = (...values) => ({ range, contents: values.map(value => ({ value })) });
+
+            if (instructions.includes(name)) {
+                const doc = instructionDocs[name];
+                const nameCommands = commands.filter(command => command.instruction === name);
+                const forms = nameCommands.map(command => `${name} ${command.args.map(arg =>
+                    argTypeNames[arg] === "addr" && name === "ldi" ? "value" : argTypeNames[arg]).join(", ")}`.trim());
+                const width = Math.max(...forms.map(form => form.length));
+                // Markdown hard break (two trailing spaces) keeps the variants close together
+                const contents = [(doc.variants ?? [doc]).map(variant =>
+                    `**${name}**${variant.signature ? " " + variant.signature : ""} — ${variant.text}`).join("  \n")];
+                if (doc.flags)
+                    contents.push(doc.flags === "–" ? "No effect on flags" : `Affects flags: ${doc.flags}`);
+                contents.push("```arrows-asm\n" + forms.map((form, index) =>
+                    `${form.padEnd(width)}  ; opcode 0x${formatHex(nameCommands[index].opcode)}`).join("\n") + "\n```");
+                return markdown(...contents);
+            }
+
+            if (registers.includes(name))
+                return markdown(`**${name}** — register`);
+            if (name === "db")
+                return markdown("**db** — define bytes: numbers, chars, strings, expressions");
+            if (name === "equ")
+                return markdown("**equ** — define a named constant");
+
+            const numberValue = parseNumberLiteral(name);
+            if (numberValue != null)
+                return markdown(`${numberValue} · 0x${formatHex(numberValue)} · 0b${numberValue.toString(2).padStart(8, "0")}`);
+
+            const info = collectNames(monaco, model).get(name);
+            if (!info)
+                return null;
+            const compiler = new Compiler(model.getValue());
+            compiler.compile();
+            const value = compiler.names[name];
+            const kind = info.detail === "label" ? "label" : info.detail === "db" ? "db data" : "constant";
+            const meaning = info.detail === "label" || info.detail === "db" ? "address" : "value";
+            return markdown(`**${name}** — ${kind}`
+                + (value != null ? `, ${meaning} ${value} · 0x${formatHex(value)}` : ""));
+        }
+    });
+}
+
+function formatHex(value) {
+    return value.toString(16).toUpperCase().padStart(2, "0");
+}
+
+function parseNumberLiteral(text) {
+    let match;
+    if (match = text.match(/^0[xX]([0-9a-fA-F]+)$/))
+        return parseInt(match[1], 16);
+    if (match = text.match(/^0[bB]([01]+)$/))
+        return parseInt(match[1], 2);
+    if (match = text.match(/^0([0-7])$/))
+        return parseInt(match[1], 8);
+    if (/^[1-9]\d*$|^0$/.test(text))
+        return parseInt(text, 10);
+    return null;
 }
 
 const reservedNames = new Set([...instructions, ...registers, ...keywords]);

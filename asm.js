@@ -43,7 +43,7 @@ class Command {
     }
 }
 
-const commands = [
+export const commands = [
     new Command("nop", [], 0x00),
     new Command("hlt", [], 0x01),
     new Command("jmp", [Args.BYTE], 0x03),
