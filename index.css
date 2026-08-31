@@ -69,6 +69,20 @@ textarea {
     cursor: pointer;
 }
 
+.monaco-editor .bank-overflow {
+    color: #ffc107;
+    font-size: 11px;
+    padding-left: 24px;
+}
+
+.bank-boundary {
+    box-sizing: border-box;
+    border-top: 1px dashed #5f5f5f;
+    color: #7f7f7f;
+    font: 11px/16px ui-monospace, Consolas, Menlo, monospace;
+    padding-left: 12px;
+}
+
 :focus {
     outline: 1px solid gray;
 }

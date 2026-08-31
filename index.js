@@ -1,25 +1,28 @@
 import { Compiler, cp1251chars, cp1251map } from "./asm.js";
 import { buildDisk } from "./builder.js";
-import { createEditor } from "./editor.js";
+import { createEditor, updateBankBoundaries } from "./editor.js";
 
 function compile(asm, format) {
     const compiler = new Compiler(asm);
     compiler.compile();
 
+    const { lineOffsets } = compiler;
+    const byteCount = compiler.bytes.length; // buildDisk() pads and consumes the bytes
+
     if (compiler.errors.length > 0) {
         let errorMessage = `Compilation failed (${compiler.errors.length} error${compiler.errors.length > 1 ? "s" : ""})\n\n`;
         for (const error of compiler.errors)
             errorMessage += `Error at line ${error.position[0] + 1}, column ${error.position[1] + 1}: ${error.message}\n\n`;
-        return { text: errorMessage, errors: compiler.errors };
+        return { text: errorMessage, errors: compiler.errors, lineOffsets, byteCount };
     }
 
-    if (compiler.bytes.length === 0)
-        return { text: "", errors: [] };
+    if (byteCount === 0)
+        return { text: "", errors: [], lineOffsets, byteCount };
 
     if (format === "hex")
-        return { text: compiler.bytes.map(byte => "0x" + byte.toString(16).toUpperCase().padStart(2, "0")).join(", "), errors: [] };
+        return { text: compiler.bytes.map(byte => "0x" + byte.toString(16).toUpperCase().padStart(2, "0")).join(", "), errors: [], lineOffsets, byteCount };
 
-    return { text: buildDisk(compiler.bytes), errors: [] };
+    return { text: buildDisk(compiler.bytes), errors: [], lineOffsets, byteCount };
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -51,10 +54,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         monaco.editor.setModelMarkers(model, "arrows", markers);
     }
 
-    function showResult({ text, errors }) {
+    function showResult({ text, errors, lineOffsets, byteCount }) {
         output.value = text;
         output.classList.toggle("errors", errors.length > 0);
         setErrorMarkers(errors);
+        updateBankBoundaries(editor, lineOffsets, byteCount);
     }
 
     function update() {

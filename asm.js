@@ -531,6 +531,7 @@ export class Compiler {
     refs = [];
     names = {};
     statementAddress = 0;
+    lineOffsets = []; // [line, byteOffset] of every statement, in order
 
     constructor(source) {
         this.tokenizer = new Tokenizer(source);
@@ -698,6 +699,7 @@ export class Compiler {
                 const { position } = token;
 
                 this.statementAddress = this.bytes.length;
+                this.lineOffsets.push([position[0], this.statementAddress]);
                 const args = this.parseArgs();
                 if (args == null)
                     continue;
@@ -734,6 +736,7 @@ export class Compiler {
                 const { position } = token;
 
                 this.statementAddress = this.bytes.length;
+                this.lineOffsets.push([position[0], this.statementAddress]);
                 token = this.tokenizer.next();
 
                 if (token.type === Token.KEYWORD && token.value === "db") {

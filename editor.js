@@ -24,6 +24,7 @@ export function createEditor(container, initialValue) {
             registerOccurrences(monaco);
             registerReferences(monaco);
             registerRename(monaco);
+            registerFolding(monaco);
 
             const editor = monaco.editor.create(container, {
                 value: initialValue,
@@ -37,7 +38,8 @@ export function createEditor(container, initialValue) {
                 tabSize: 4,
                 insertSpaces: true,
                 detectIndentation: false,
-                wordBasedSuggestions: "off"
+                wordBasedSuggestions: "off",
+                showFoldingControls: "always" // the banks are few, let their arrows be visible
             });
 
             // The compiler and the URL hash expect LF regardless of platform
@@ -46,6 +48,165 @@ export function createEditor(container, initialValue) {
             resolve({ monaco, editor });
         });
     });
+}
+
+const bankSize = 128;
+
+let bankZoneIds = [];
+let overflowDecorations = null;
+let bankFoldingRanges = [];
+
+// The memory banks are the only foldable regions of an assembly program
+function registerFolding(monaco) {
+    monaco.languages.registerFoldingRangeProvider(languageId, {
+        provideFoldingRanges: () => bankFoldingRanges
+    });
+}
+
+// Draw a separator line between the lines of code where a 128-byte memory bank boundary passes,
+// and mark the statements whose bytes span such a boundary
+export function updateBankBoundaries(editor, lineOffsets, byteCount) {
+    const model = editor.getModel();
+    const boundaries = [];
+    const overflows = [];
+
+    // A program fitting into the default 256 addresses needs no banking at all
+    if (byteCount > 2 * bankSize) {
+        let nextBoundary = bankSize;
+        let firstByteLine = -1;
+        for (let i = 0; i < lineOffsets.length; ++i) {
+            const [line, offset] = lineOffsets[i];
+            while (offset >= nextBoundary) {
+                boundaries.push({ afterLineNumber: findBoundaryLine(model, line + 1), bank: nextBoundary / bankSize });
+                nextBoundary += bankSize;
+            }
+
+            const end = i + 1 < lineOffsets.length ? lineOffsets[i + 1][1] : byteCount;
+            if (end > offset) {
+                // The common part starts where the first byte is emitted, leaving the constants above
+                if (firstByteLine < 0)
+                    firstByteLine = line;
+
+                // A statement whose bytes span a bank boundary: either the layout above has shifted,
+                // or the data legitimately runs across the boundary — the hover names the exact spot
+                if (Math.floor(offset / bankSize) !== Math.floor((end - 1) / bankSize))
+                    overflows.push({ line: line + 1, start: offset, last: end - 1 });
+            }
+        }
+        if (firstByteLine >= 0)
+            boundaries.unshift({ afterLineNumber: findBoundaryLine(model, firstByteLine + 1), bank: 0 });
+    }
+    // Several boundaries land at the same spot when a statement spans a whole bank;
+    // keep only the last one, naming the bank the following code actually starts in
+    for (let i = boundaries.length - 1; i > 0; --i)
+        if (boundaries[i].afterLineNumber === boundaries[i - 1].afterLineNumber)
+            boundaries.splice(i - 1, 1);
+
+    markOverflows(editor, model, overflows);
+
+    // Each bank is a foldable region, starting with its header comments; so is the common part.
+    // Without boundaries there is nothing to fold: an assembly program has no other structure
+    bankFoldingRanges = [];
+    for (let i = -1; boundaries.length > 0 && i < boundaries.length; ++i) {
+        const end = i + 1 < boundaries.length ? boundaries[i + 1].afterLineNumber : findFoldEnd(model);
+        const start = findFoldStart(model, i < 0 ? 1 : boundaries[i].afterLineNumber + 1, end);
+        if (end > start)
+            bankFoldingRanges.push({ start, end });
+    }
+
+    const caretLine = editor.getPosition().lineNumber;
+    const caretTop = editor.getTopForLineNumber(caretLine);
+
+    // Rebuilt from scratch on every change: caching by the boundaries alone would let a zone
+    // that got out of sync with the text survive any number of edits
+    editor.changeViewZones((accessor) => {
+        for (const id of bankZoneIds)
+            accessor.removeZone(id);
+        bankZoneIds = boundaries.map(({ afterLineNumber, bank }) => {
+            const domNode = document.createElement("div");
+            domNode.className = "bank-boundary";
+            domNode.textContent = bank === 0 ? "COMMON" : `BANK ${bank}`;
+            return accessor.addZone({ afterLineNumber, heightInPx: 18, domNode });
+        });
+    });
+
+    // A separator appearing above the caret pushes it down by its height, and the editor has
+    // scrolled to the caret long before that: follow the shift, or typing at the bottom edge
+    // drops the caret out of sight — and the text jumps under the eye either way
+    const shift = editor.getTopForLineNumber(caretLine) - caretTop;
+    if (shift !== 0)
+        editor.setScrollTop(editor.getScrollTop() + shift);
+}
+
+function markOverflows(editor, model, overflows) {
+    const monaco = window.monaco;
+    const decorations = [];
+    for (const { line, start, last } of overflows) {
+        const column = model.getLineMaxColumn(line);
+        decorations.push({
+            range: new monaco.Range(line, column, line, column),
+            options: {
+                after: {
+                    content: "out of bank bounds",
+                    inlineClassName: "bank-overflow",
+                    inlineClassNameAffectsLetterSpacing: true // the class changes the font size
+                },
+                showIfCollapsed: true // the range is empty, it only marks the end of the line
+            }
+        });
+        // A decoration carrying injected text draws no overview ruler mark, so it takes a separate one
+        decorations.push({
+            range: new monaco.Range(line, 1, line, column),
+            options: {
+                hoverMessage: {
+                    value: "The bytes of this statement cross a bank boundary: they start in "
+                        + `${bankAreaName(start)} at \`0x${formatHex(start)}\` `
+                        + `and end in ${bankAreaName(last)} at \`0x${formatHex(last)}\`.`
+                },
+                overviewRuler: { color: "#ffc107", position: monaco.editor.OverviewRulerLane.Right }
+            }
+        });
+    }
+    if (overflowDecorations)
+        overflowDecorations.set(decorations);
+    else
+        overflowDecorations = editor.createDecorationsCollection(decorations);
+}
+
+// The trailing empty lines belong to no bank: folded, the file still ends with a line to type on
+function findFoldEnd(model) {
+    let end = model.getLineCount();
+    while (end > 1 && model.getLineContent(end).trim() === "")
+        --end;
+    return end;
+}
+
+// A folded region shows its first line, so skip the leading ruler comments like ";====":
+// the header text below them is what the reader needs to see
+function findFoldStart(model, start, end) {
+    while (start < end && !/\p{L}/u.test(model.getLineContent(start)))
+        ++start;
+    return start;
+}
+
+function bankAreaName(offset) {
+    return offset < bankSize ? "the common part" : "bank " + Math.floor(offset / bankSize);
+}
+
+// The separator sticks to the bank's header: walk up over the comments and
+// blank lines preceding the statement, then back down over the blank ones,
+// so the separator lands right before the header comments, if any
+function findBoundaryLine(model, statementLine) {
+    let top = statementLine;
+    while (top > 1) {
+        const text = model.getLineContent(top - 1).trim();
+        if (text !== "" && !text.startsWith(";"))
+            break;
+        --top;
+    }
+    while (top < statementLine && model.getLineContent(top).trim() === "")
+        ++top;
+    return top - 1;
 }
 
 function registerLanguage(monaco) {
