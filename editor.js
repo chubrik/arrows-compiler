@@ -17,6 +17,7 @@ export function createEditor(container, initialValue) {
         require(["vs/editor/editor.main"], () => {
             const monaco = window.monaco;
             registerLanguage(monaco);
+            registerCompletion(monaco);
 
             const editor = monaco.editor.create(container, {
                 value: initialValue,
@@ -29,7 +30,8 @@ export function createEditor(container, initialValue) {
                 scrollBeyondLastLine: false,
                 tabSize: 4,
                 insertSpaces: true,
-                detectIndentation: false
+                detectIndentation: false,
+                wordBasedSuggestions: "off"
             });
 
             // The compiler and the URL hash expect LF regardless of platform
@@ -92,3 +94,62 @@ function registerLanguage(monaco) {
         }
     });
 }
+
+function registerCompletion(monaco) {
+    monaco.languages.registerCompletionItemProvider(languageId, {
+        provideCompletionItems: (model, position) => {
+            const line = model.getLineContent(position.lineNumber).substring(0, position.column - 1);
+            // No suggestions inside comments and strings
+            if (line.includes(";") || (line.split("\"").length - 1) % 2 === 1)
+                return { suggestions: [] };
+
+            const word = model.getWordUntilPosition(position);
+            const range = new monaco.Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
+            const item = (label, kind, detail, sortText) =>
+                ({ label, kind, detail, range, sortText, insertText: label });
+
+            const beforeWord = line.substring(0, word.startColumn - 1);
+            const instructionItems = () => instructions.map(name =>
+                item(name, monaco.languages.CompletionItemKind.Keyword, "instruction", name));
+
+            // Start of a statement: a line start or right after a "label:"
+            if (/^\s*$/.test(beforeWord) || /^\s*[a-zA-Z_]\w*\s*:\s*$/.test(beforeWord))
+                return { suggestions: instructionItems() };
+
+            // Second word after a name: "db" or "equ"
+            const firstWord = beforeWord.match(/^\s*([a-zA-Z_]\w*)\s+$/);
+            if (firstWord && !reservedNames.has(firstWord[1]))
+                return {
+                    suggestions: keywords.map(name =>
+                        item(name, monaco.languages.CompletionItemKind.Keyword, "directive", name))
+                };
+
+            // Argument position: registers (except in db/equ values) and known names
+            const suggestions = [];
+            if (!/\b(?:db|equ)\b/.test(beforeWord))
+                for (const name of registers)
+                    suggestions.push(item(name, monaco.languages.CompletionItemKind.Variable, "register", "0" + name));
+            for (const [name, info] of collectNames(monaco, model))
+                suggestions.push(item(name, info.kind, info.detail, "1" + name));
+            return { suggestions };
+        }
+    });
+}
+
+const reservedNames = new Set([...instructions, ...registers, ...keywords]);
+
+function collectNames(monaco, model) {
+    const names = new Map();
+    for (let i = 1; i <= model.getLineCount(); ++i) {
+        const line = model.getLineContent(i);
+        let match;
+        if ((match = line.match(/^\s*([a-zA-Z_]\w*)\s*:/)) && !reservedNames.has(match[1]))
+            names.set(match[1], { kind: monaco.languages.CompletionItemKind.Function, detail: "label" });
+        else if ((match = line.match(/^\s*([a-zA-Z_]\w*)\s+db\b/)) && !reservedNames.has(match[1]))
+            names.set(match[1], { kind: monaco.languages.CompletionItemKind.Variable, detail: "db" });
+        else if ((match = line.match(/^\s*([a-zA-Z_]\w*)\s+equ\b\s*(.*)/)) && !reservedNames.has(match[1]))
+            names.set(match[1], { kind: monaco.languages.CompletionItemKind.Constant, detail: ("equ " + match[2]).trim() });
+    }
+    return names;
+}
+
