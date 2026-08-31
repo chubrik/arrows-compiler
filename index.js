@@ -1,5 +1,6 @@
 import { Compiler, cp1251chars, cp1251map } from "./asm.js";
 import { buildDisk } from "./builder.js";
+import { createEditor } from "./editor.js";
 
 function compile(asm, format) {
     const compiler = new Compiler(asm);
@@ -9,43 +10,69 @@ function compile(asm, format) {
         let errorMessage = `Compilation failed (${compiler.errors.length} error${compiler.errors.length > 1 ? "s" : ""})\n\n`;
         for (const error of compiler.errors)
             errorMessage += `Error at line ${error.position[0] + 1}, column ${error.position[1] + 1}: ${error.message}\n\n`;
-        return errorMessage;
+        return { text: errorMessage, errors: compiler.errors };
     }
 
     if (compiler.bytes.length === 0)
-        return "";
+        return { text: "", errors: [] };
 
     if (format === "hex")
-        return compiler.bytes.map(byte => "0x" + byte.toString(16).toUpperCase().padStart(2, "0")).join(", ");
+        return { text: compiler.bytes.map(byte => "0x" + byte.toString(16).toUpperCase().padStart(2, "0")).join(", "), errors: [] };
 
-    return buildDisk(compiler.bytes);
+    return { text: buildDisk(compiler.bytes), errors: [] };
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-    const source = document.getElementById("source");
+document.addEventListener("DOMContentLoaded", async () => {
     const output = document.getElementById("output");
     const outputFormat = document.getElementById("output-format");
 
+    const params = new URLSearchParams(location.hash.substring(1));
+    const initialSource = stripBom(decodeFromUrl(params.get("code") || ""));
+    const format = params.get("output");
+    if (format && [...outputFormat.options].some(option => option.value === format))
+        outputFormat.value = format;
+
+    const { monaco, editor } = await createEditor(document.getElementById("source"), initialSource);
+
+    function setErrorMarkers(errors) {
+        const model = editor.getModel();
+        const markers = errors.map(({ position: [line, column], message }) => {
+            const start = model.validatePosition({ lineNumber: line + 1, column: column + 1 });
+            const word = model.getWordAtPosition(start);
+            return {
+                severity: monaco.MarkerSeverity.Error,
+                message,
+                startLineNumber: start.lineNumber,
+                startColumn: word?.startColumn ?? start.column,
+                endLineNumber: start.lineNumber,
+                endColumn: word?.endColumn ?? start.column + 1
+            };
+        });
+        monaco.editor.setModelMarkers(model, "arrows", markers);
+    }
+
     function update() {
+        const source = editor.getValue();
         const params = new URLSearchParams();
         if (outputFormat.value !== "arrows")
             params.set("output", outputFormat.value);
-        if (source.value.trim())
-            params.set("code", encodeToUrl(stripBom(source.value)));
+        if (source.trim())
+            params.set("code", encodeToUrl(stripBom(source)));
         const hash = params.toString();
         history.replaceState(null, "", hash ? `${location.pathname}#${hash}` : location.pathname);
-        output.value = compile(source.value, outputFormat.value);
+
+        const { text, errors } = compile(source, outputFormat.value);
+        output.value = text;
+        setErrorMarkers(errors);
     }
-    source.addEventListener("input", update);
+
+    editor.onDidChangeModelContent(update);
     outputFormat.addEventListener("change", update);
 
-    source.addEventListener("paste", (event) => {
-        const text = event.clipboardData?.getData("text/plain") ?? "";
-        if (!text.includes("\uFEFF"))
-            return;
-        event.preventDefault();
-        source.setRangeText(stripBom(text), source.selectionStart, source.selectionEnd, "end");
-        update();
+    editor.onDidPaste((event) => {
+        const pasted = editor.getModel().getValueInRange(event.range);
+        if (pasted.includes("\uFEFF"))
+            editor.executeEdits("strip-bom", [{ range: event.range, text: stripBom(pasted) }]);
     });
 
     const copyButton = document.getElementById("copy");
@@ -62,12 +89,10 @@ document.addEventListener("DOMContentLoaded", () => {
         copyResetTimer = setTimeout(() => copyButton.textContent = "Copy", 1500);
     });
 
-    const params = new URLSearchParams(location.hash.substring(1));
-    source.value = stripBom(decodeFromUrl(params.get("code") || ""));
-    const format = params.get("output");
-    if (format && [...outputFormat.options].some(option => option.value === format))
-        outputFormat.value = format;
-    output.value = compile(source.value, outputFormat.value);
+    const { text, errors } = compile(initialSource, outputFormat.value);
+    output.value = text;
+    setErrorMarkers(errors);
+    editor.focus();
 });
 
 function stripBom(value) {

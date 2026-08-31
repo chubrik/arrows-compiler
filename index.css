@@ -19,9 +19,17 @@ textarea {
     color: #d4d4d4;
 }
 
+#source {
+    flex: 1;
+    min-width: 0;
+    font-family: ui-monospace, Consolas, Menlo, monospace;
+    font-size: 14px;
+}
+
 @media (min-width: 1024px) {
     #source {
-        min-width: 101ch;
+        /* 101ch of code plus the line-number gutter */
+        min-width: calc(101ch + 80px);
     }
 }
 

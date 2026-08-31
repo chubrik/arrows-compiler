@@ -6,7 +6,7 @@ const Args = {
     BYTE: 0x4
 };
 
-const instructions = [
+export const instructions = [
     "adc", "add", "and", "clr", "dec", "hlt", "inc", "jc",
     "jmp", "jnc", "jno", "jns", "jnz", "jo", "js", "jz",
     "ld", "ldi", "mov", "neg", "nop", "not", "or", "rcl",
@@ -14,9 +14,9 @@ const instructions = [
     "test", "xor"
 ];
 
-const registers = ["a", "b", "c", "d"];
+export const registers = ["a", "b", "c", "d"];
 
-const keywords = ["db", "equ"];
+export const keywords = ["db", "equ"];
 
 const operators = ["+", "-"];
 
