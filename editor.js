@@ -39,6 +39,7 @@ export function createEditor(container, initialValue) {
                 insertSpaces: true,
                 detectIndentation: false,
                 wordBasedSuggestions: "off",
+                bracketPairColorization: { enabled: false }, // an assembly program has no brackets
                 showFoldingControls: "always" // the banks are few, let their arrows be visible
             });
 
@@ -55,10 +56,13 @@ const bankSize = 128;
 let bankZoneIds = [];
 let overflowDecorations = null;
 let bankFoldingRanges = [];
+let bankFoldingChanged = null;
 
 // The memory banks are the only foldable regions of an assembly program
 function registerFolding(monaco) {
+    bankFoldingChanged = new monaco.Emitter();
     monaco.languages.registerFoldingRangeProvider(languageId, {
+        onDidChange: bankFoldingChanged.event,
         provideFoldingRanges: () => bankFoldingRanges
     });
 }
@@ -113,6 +117,8 @@ export function updateBankBoundaries(editor, lineOffsets, byteCount) {
         if (end > start)
             bankFoldingRanges.push({ start, end });
     }
+    // Monaco asks for the ranges sooner than this rebuild happens, so tell it they are ready
+    bankFoldingChanged.fire();
 
     const caretLine = editor.getPosition().lineNumber;
     const caretTop = editor.getTopForLineNumber(caretLine);
@@ -488,7 +494,16 @@ function findOccurrences(monaco, model, name) {
     return ranges;
 }
 
+// Completion, definition, hover and occurrences all ask for the same names, several times per
+// keystroke; the model version tells when the previous answer still holds. The callers only
+// read from the map
+let namesCache = { versionId: -1, names: null };
+
 function collectNames(monaco, model) {
+    const versionId = model.getVersionId();
+    if (namesCache.versionId === versionId)
+        return namesCache.names;
+
     const names = new Map();
     for (let i = 1; i <= model.getLineCount(); ++i) {
         const line = model.getLineContent(i);
@@ -502,6 +517,7 @@ function collectNames(monaco, model) {
         else if ((match = line.match(/^\s*([a-zA-Z_]\w*)\s+equ\b\s*(.*)/)) && !reservedNames.has(match[1]))
             add(match[1], monaco.languages.CompletionItemKind.Constant, ("equ " + match[2]).trim());
     }
+    namesCache = { versionId, names };
     return names;
 }
 

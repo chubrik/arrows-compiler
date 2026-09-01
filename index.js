@@ -54,24 +54,52 @@ document.addEventListener("DOMContentLoaded", async () => {
         monaco.editor.setModelMarkers(model, "arrows", markers);
     }
 
-    function showResult({ text, errors, lineOffsets, byteCount }) {
-        output.value = text;
-        output.classList.toggle("errors", errors.length > 0);
-        setErrorMarkers(errors);
-        updateBankBoundaries(editor, lineOffsets, byteCount);
+    let lastResult;
+    let pendingCompile = false;
+
+    function compileNow() {
+        pendingCompile = false;
+        showResult(compile(editor.getValue(), outputFormat.value));
     }
 
-    function update() {
-        const source = editor.getValue();
+    function showResult(result) {
+        lastResult = result;
+        output.value = result.text;
+        output.classList.toggle("errors", result.errors.length > 0);
+        setErrorMarkers(result.errors);
+    }
+
+    function showBankBoundaries() {
+        updateBankBoundaries(editor, lastResult.lineOffsets, lastResult.byteCount);
+    }
+
+    function updateHash() {
+        const source = stripBom(editor.getValue());
         const params = new URLSearchParams();
         if (outputFormat.value !== "arrows")
             params.set("output", outputFormat.value);
         if (source.trim())
-            params.set("code", encodeToUrl(stripBom(source)));
+            params.set("code", encodeToUrl(source));
         const hash = params.toString();
         history.replaceState(null, "", hash ? `${location.pathname}#${hash}` : location.pathname);
+    }
 
-        showResult(compile(source, outputFormat.value));
+    let compileTimer;
+    let idleTimer;
+
+    function update() {
+        pendingCompile = true;
+        clearTimeout(compileTimer);
+        compileTimer = setTimeout(compileNow, 10);
+        clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => {
+            if (pendingCompile) {
+                clearTimeout(compileTimer);
+                compileNow();
+            }
+            updateHash();
+            showBankBoundaries();
+        }, 500);
     }
 
     editor.onDidChangeModelContent(update);
@@ -147,7 +175,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         copyResetTimer = setTimeout(() => copyButton.textContent = "Copy", 1500);
     });
 
-    showResult(compile(initialSource, outputFormat.value));
+    compileNow();
+    showBankBoundaries();
     editor.focus();
 });
 
