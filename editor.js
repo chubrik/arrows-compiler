@@ -33,6 +33,7 @@ export function createEditor(container, initialValue) {
                 fontFamily: "ui-monospace, Consolas, Menlo, monospace",
                 fontSize: 14,
                 minimap: { enabled: false },
+                rulers: [100],
                 automaticLayout: true,
                 scrollBeyondLastLine: false,
                 tabSize: 4,
@@ -52,9 +53,11 @@ export function createEditor(container, initialValue) {
 }
 
 const bankSize = 128;
+const lineWidth = 100;
 
 let bankZoneIds = [];
 let overflowDecorations = null;
+let longLineDecorations = null;
 let bankFoldingRanges = [];
 let bankFoldingChanged = null;
 
@@ -107,6 +110,7 @@ export function updateBankBoundaries(editor, lineOffsets, byteCount) {
             boundaries.splice(i - 1, 1);
 
     markOverflows(editor, model, overflows);
+    markLongLines(editor, model);
 
     // Each bank is a foldable region, starting with its header comments; so is the common part.
     // Without boundaries there is nothing to fold: an assembly program has no other structure
@@ -142,6 +146,32 @@ export function updateBankBoundaries(editor, lineOffsets, byteCount) {
     const shift = editor.getTopForLineNumber(caretLine) - caretTop;
     if (shift !== 0)
         editor.setScrollTop(editor.getScrollTop() + shift);
+}
+
+// The ruler is easy to miss when the long line is far off screen, so the overview ruler keeps
+// a mark of its own — on the left lane and in grey, as a remark rather than a warning
+function markLongLines(editor, model) {
+    const monaco = window.monaco;
+    const decorations = [];
+    for (let line = 1; line <= model.getLineCount(); ++line) {
+        const length = model.getLineLength(line);
+        const over = length - lineWidth;
+        if (over > 0)
+            decorations.push({
+                range: new monaco.Range(line, lineWidth + 1, line, length + 1),
+                options: {
+                    inlineClassName: "long-line",
+                    hoverMessage: {
+                        value: `This line runs ${over} character${over > 1 ? "s" : ""} past the ${lineWidth}-column width.`
+                    },
+                    overviewRuler: { color: "#5f5f5f", position: monaco.editor.OverviewRulerLane.Left }
+                }
+            });
+    }
+    if (longLineDecorations)
+        longLineDecorations.set(decorations);
+    else
+        longLineDecorations = editor.createDecorationsCollection(decorations);
 }
 
 function markOverflows(editor, model, overflows) {
@@ -263,7 +293,8 @@ function registerLanguage(monaco) {
             { token: "string.invalid", foreground: "F44747" }
         ],
         colors: {
-            "editor.background": "#1e1e1e"
+            "editor.background": "#1e1e1e",
+            "editorRuler.foreground": "#2d2d2d"
         }
     });
 }
