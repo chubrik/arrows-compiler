@@ -1,5 +1,5 @@
 import { Compiler, commands, instructions, registers, keywords } from "./asm.js";
-import { instructionDocs } from "./docs.js";
+import { describeDevices, devicePort, devicePortDoc, instructionDocs } from "./docs.js";
 
 const monacoBase = "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/";
 const languageId = "arrows-asm";
@@ -399,24 +399,38 @@ function registerHover(monaco) {
 
             const numberValue = parseNumberLiteral(name);
             if (numberValue != null)
-                return markdown(`${numberValue} · 0x${formatHex(numberValue)} · 0b${numberValue.toString(2).padStart(8, "0")}`);
+                return markdown(`${numberValue} · 0x${formatHex(numberValue)} · ${formatBinary(numberValue)}`,
+                    ...describePort(model, numberValue));
 
             const info = collectNames(monaco, model).get(name);
             if (!info)
                 return null;
-            const compiler = new Compiler(model.getValue());
-            compiler.compile();
-            const value = compiler.names[name];
+            const value = compiled(model).names[name];
             const kind = info.detail === "label" ? "label" : info.detail === "db" ? "db data" : "constant";
             const meaning = info.detail === "label" || info.detail === "db" ? "address" : "value";
             return markdown(`**${name}** — ${kind}`
-                + (value != null ? `, ${meaning} ${value} · 0x${formatHex(value)}` : ""));
+                + (value != null ? `, ${meaning} ${value} · 0x${formatHex(value)}` : ""),
+                ...describePort(model, value, info.detail === "db"));
         }
     });
 }
 
 function formatHex(value) {
     return value.toString(16).toUpperCase().padStart(2, "0");
+}
+
+function formatBinary(value) {
+    return "0b" + value.toString(2).padStart(8, "0");
+}
+
+// The port that connects the output devices. A db byte can land on the port itself: then the
+// disk connects the devices as it loads, and the byte says which ones
+function describePort(model, address, isData = false) {
+    if (address !== devicePort)
+        return [];
+    const byte = isData ? compiled(model).bytes[devicePort] : null;
+    return byte == null ? [devicePortDoc]
+        : [devicePortDoc, `Loaded ${formatBinary(byte)} — ${describeDevices(byte)}`];
 }
 
 function parseNumberLiteral(text) {
@@ -552,3 +566,16 @@ function collectNames(monaco, model) {
     return names;
 }
 
+// A hover asks the compiler for the addresses and the bytes several times while the model
+// stands still
+let compilerCache = { versionId: -1, compiler: null };
+
+function compiled(model) {
+    const versionId = model.getVersionId();
+    if (compilerCache.versionId !== versionId) {
+        const compiler = new Compiler(model.getValue());
+        compiler.compile();
+        compilerCache = { versionId, compiler };
+    }
+    return compilerCache.compiler;
+}
