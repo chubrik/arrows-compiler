@@ -36,7 +36,7 @@ function loadMonaco() {
     });
 }
 
-export async function createMonacoEditor(container, initialValue) {
+export async function createMonacoEditor(container, initialValue, theme) {
     const monaco = await loadMonaco();
 
     // The providers belong to the language, not to the editor: registering them again after
@@ -56,7 +56,7 @@ export async function createMonacoEditor(container, initialValue) {
     const editor = monaco.editor.create(container, {
         value: initialValue,
         language: languageId,
-        theme: "arrows-dark",
+        theme: themeName(theme),
         fontFamily: "ui-monospace, Consolas, Menlo, monospace",
         fontSize: 14,
         minimap: { enabled: false },
@@ -94,6 +94,7 @@ export async function createMonacoEditor(container, initialValue) {
 
         focus: () => editor.focus(),
         onChange: (handler) => editor.onDidChangeModelContent(handler),
+        setTheme: (theme) => monaco.editor.setTheme(themeName(theme)),
         setErrors: (errors) => setErrorMarkers(monaco, editor, errors),
         setBankBoundaries: (lineOffsets, byteCount) => updateBankBoundaries(editor, lineOffsets, byteCount),
 
@@ -107,6 +108,11 @@ export async function createMonacoEditor(container, initialValue) {
             bankFoldingRanges = [];
         }
     };
+}
+
+// The page keeps the theme; Monaco only needs to know which of the two it draws with
+function themeName(theme) {
+    return theme === "light" ? "arrows-light" : "arrows-dark";
 }
 
 function setErrorMarkers(monaco, editor, errors) {
@@ -444,6 +450,22 @@ function registerLanguage(monaco) {
         colors: {
             "editor.background": "#1e1e1e",
             "editorRuler.foreground": "#2d2d2d"
+        }
+    });
+
+    // The same four tokens in the colours the light theme of the editor uses for them
+    monaco.editor.defineTheme("arrows-light", {
+        base: "vs",
+        inherit: true,
+        rules: [
+            { token: "register", foreground: "001080" },
+            { token: "directive", foreground: "AF00DB" },
+            { token: "label", foreground: "795E26" },
+            { token: "string.invalid", foreground: "CD3131" }
+        ],
+        colors: {
+            "editor.background": "#ffffff",
+            "editorRuler.foreground": "#e5e5e5"
         }
     });
 }

@@ -5,6 +5,12 @@ import { createPlainEditor } from "./plain-editor.js";
 import { stripBom } from "./text.js";
 
 const modeKey = "editor-mode";
+const themeKey = "theme";
+
+// The theme is resolved and applied here, while the module runs: waiting for DOMContentLoaded
+// would let the page flash the dark ground state at someone who asked for the light one
+const lightQuery = matchMedia("(prefers-color-scheme: light)");
+applyTheme(storedTheme());
 
 function compile(asm, format) {
     const compiler = new Compiler(asm);
@@ -34,6 +40,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const output = document.getElementById("output");
     const outputFormat = document.getElementById("output-format");
     const editorMode = document.getElementById("editor-mode");
+    const themeSelect = document.getElementById("theme");
 
     const params = new URLSearchParams(location.hash.substring(1));
     const initialSource = stripBom(decodeFromUrl(params.get("code") || ""));
@@ -42,18 +49,20 @@ document.addEventListener("DOMContentLoaded", async () => {
         outputFormat.value = format;
 
     editorMode.value = storedMode();
+    themeSelect.value = storedTheme();
 
     // Whichever editor is running, the page talks to it through the same handful of methods
     async function createEditor(mode, value) {
+        const theme = document.documentElement.dataset.theme;
         if (mode === "monaco")
             try {
-                return await createMonacoEditor(source, value);
+                return await createMonacoEditor(source, value, theme);
             } catch {
                 // Offline, or the CDN is out of reach: the simple editor still compiles, and
                 // the fallback is not remembered — the choice stands for the next visit
                 editorMode.value = "plain";
             }
-        return createPlainEditor(source, value);
+        return createPlainEditor(source, value, theme);
     }
 
     let editor = await createEditor(editorMode.value, initialSource);
@@ -136,6 +145,19 @@ document.addEventListener("DOMContentLoaded", async () => {
         editor.goToPosition(line, column);
     });
 
+    themeSelect.addEventListener("change", () => {
+        try {
+            localStorage.setItem(themeKey, themeSelect.value);
+        } catch { }
+        editor.setTheme(applyTheme(themeSelect.value));
+    });
+
+    // A system that turns dark for the night takes the page along, unless a theme was picked by hand
+    lightQuery.addEventListener("change", () => {
+        if (themeSelect.value === "auto")
+            editor.setTheme(applyTheme("auto"));
+    });
+
     // A click on an error line in the output jumps to its position in the code;
     // a click anywhere else in the failed output jumps to the first error
     const errorPattern = /^Error at line (\d+), column (\d+)/;
@@ -197,6 +219,22 @@ function storedMode() {
     } catch {
         return "monaco";
     }
+}
+
+// Auto follows the browser or the system; a deliberate choice outlives what they say
+function storedTheme() {
+    try {
+        const theme = localStorage.getItem(themeKey);
+        return theme === "light" || theme === "dark" ? theme : "auto";
+    } catch {
+        return "auto";
+    }
+}
+
+function applyTheme(choice) {
+    const theme = choice === "auto" ? (lightQuery.matches ? "light" : "dark") : choice;
+    document.documentElement.dataset.theme = theme;
+    return theme;
 }
 
 function decodeFromUrl(code) {
