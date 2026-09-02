@@ -3,8 +3,8 @@ const Args = {
     B: 0x1,
     C: 0x2,
     D: 0x3,
-    ZERO: 0x4,
-    BYTE: 0x5
+    BYTE: 0x4,
+    ZERO: 0x5
 };
 
 export const instructions = [
