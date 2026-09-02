@@ -29,6 +29,8 @@ class Chunk {
 
 export class GameMap {
     chunks = [];
+    chunkColumns = new Map();
+    filledArrows = null;
 
     constructor(save) {
         if (save)
@@ -36,6 +38,7 @@ export class GameMap {
     }
 
     setArrow(x, y, type, rotation, flipped) {
+        this.filledArrows = null;
         Object.assign(this.getArrow(x, y), { type, rotation, flipped });
     }
 
@@ -53,26 +56,41 @@ export class GameMap {
     }
 
     getChunk(x, y) {
-        for (const chunk of this.chunks)
-            if (chunk.x === x && chunk.y === y)
-                return chunk;
-
-        const chunk = new Chunk(x, y);
-        this.chunks.push(chunk);
+        let column = this.chunkColumns.get(x);
+        if (!column) {
+            column = new Map();
+            this.chunkColumns.set(x, column);
+        }
+        let chunk = column.get(y);
+        if (!chunk) {
+            chunk = new Chunk(x, y);
+            this.chunks.push(chunk);
+            column.set(y, chunk);
+        }
         return chunk;
     }
 
+    getFilledArrows() {
+        if (!this.filledArrows) {
+            this.filledArrows = [];
+            for (const chunk of this.chunks)
+                for (let i = 0; i < CHUNK_SIZE; ++i)
+                    for (let j = 0; j < CHUNK_SIZE; ++j) {
+                        const arrow = chunk.arrows[i + j * CHUNK_SIZE];
+                        if (arrow.type !== 0)
+                            this.filledArrows.push({ x: chunk.x * CHUNK_SIZE + i, y: chunk.y * CHUNK_SIZE + j, arrow });
+                    }
+        }
+        return this.filledArrows;
+    }
+
     paste(map, x, y) {
-        for (const chunk of map.chunks)
-            for (let i = 0; i < CHUNK_SIZE; ++i)
-                for (let j = 0; j < CHUNK_SIZE; ++j) {
-                    const arrow = chunk.arrows[i + j * CHUNK_SIZE];
-                    if (arrow.type !== 0)
-                        this.setArrow(chunk.x * CHUNK_SIZE + i + x, chunk.y * CHUNK_SIZE + j + y, arrow.type, arrow.rotation, arrow.flipped);
-                }
+        for (const filled of map.getFilledArrows())
+            this.setArrow(filled.x + x, filled.y + y, filled.arrow.type, filled.arrow.rotation, filled.arrow.flipped);
     }
 
     load(save) {
+        this.filledArrows = null;
         const buffer = atob(save).split("").map((c) => c.charCodeAt(0));
 
         if (buffer.length < 4)
