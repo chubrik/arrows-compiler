@@ -547,7 +547,7 @@ export class Compiler {
     parseNumber(token) {
         const value = this.parseNumberValue(token);
         if (value == null)
-            this.errors.push(new AsmError(token.position, `invalid number ${token.value}`));
+            this.errors.push(new AsmError(token.position, `invalid number '${token.value}'`));
         return value;
     }
 
@@ -678,14 +678,14 @@ export class Compiler {
                 }
 
                 if (name in names)
-                    this.errors.push(new AsmError(position, `label ${name} is already defined`));
+                    this.errors.push(new AsmError(position, `label '${name}' is already defined`));
                 else
                     names[name] = true;
             } else
                 this.errors.push(new AsmError(token.position, `unexpected ${token}`));
 
         for (const { name, position } of this.refs)
-            this.errors.push(new AsmError(position, `unresolved ${name}`));
+            this.errors.push(new AsmError(position, `unresolved '${name}'`));
 
         if (this.bytes.length > 256)
             this.errors.push(new AsmError([0, 0], "memory overflow"));
