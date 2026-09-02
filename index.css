@@ -106,6 +106,7 @@ textarea {
     gap: 6px;
 }
 
+#cpu,
 #output-format,
 #editor-mode,
 #theme {

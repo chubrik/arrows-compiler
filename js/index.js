@@ -1,9 +1,17 @@
-import { Compiler } from "./v2/asm.js";
 import { buildDisk } from "./builder.js";
-import { builderConfig } from "./v2/builder-config.js";
 import { createMonacoEditor } from "./editor.js";
 import { createPlainEditor } from "./plain-editor.js";
 import { cp1251chars, cp1251map, stripBom } from "./text.js";
+import { Compiler as CompilerV1 } from "./v1/asm.js";
+import { builderConfig as builderConfigV1 } from "./v1/builder-config.js";
+import { Compiler as CompilerV2 } from "./v2/asm.js";
+import { builderConfig as builderConfigV2 } from "./v2/builder-config.js";
+
+const cpuVersions = {
+    "v1": { Compiler: CompilerV1, builderConfig: builderConfigV1 },
+    "v2": { Compiler: CompilerV2, builderConfig: builderConfigV2 },
+};
+const defaultCpu = "v2";
 
 const modeKey = "editor-mode";
 const themeKey = "theme";
@@ -13,11 +21,12 @@ const themeKey = "theme";
 const lightQuery = matchMedia("(prefers-color-scheme: light)");
 applyTheme(storedTheme());
 
-function compile(asm, format) {
+function compile(asm, format, cpu) {
+    const { Compiler, builderConfig } = cpuVersions[cpu];
     const compiler = new Compiler(asm);
     compiler.compile();
 
-    const { lineOffsets } = compiler;
+    const lineOffsets = compiler.lineOffsets ?? []; // the v1 compiler tracks no banking
     const byteCount = compiler.bytes.length; // buildDisk() pads and consumes the bytes
 
     if (compiler.errors.length > 0) {
@@ -39,6 +48,7 @@ function compile(asm, format) {
 document.addEventListener("DOMContentLoaded", async () => {
     const source = document.getElementById("source");
     const output = document.getElementById("output");
+    const cpuSelect = document.getElementById("cpu");
     const outputFormat = document.getElementById("output-format");
     const editorMode = document.getElementById("editor-mode");
     const themeSelect = document.getElementById("theme");
@@ -48,6 +58,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     const format = params.get("output");
     if (format && [...outputFormat.options].some(option => option.value === format))
         outputFormat.value = format;
+    const cpu = params.get("cpu");
+    if (cpu && cpu in cpuVersions)
+        cpuSelect.value = cpu;
 
     editorMode.value = storedMode();
     themeSelect.value = storedTheme();
@@ -74,7 +87,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     function compileNow() {
         pendingCompile = false;
-        showResult(compile(editor.getValue(), outputFormat.value));
+        showResult(compile(editor.getValue(), outputFormat.value, cpuSelect.value));
     }
 
     function showResult(result) {
@@ -91,6 +104,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     function updateHash() {
         const source = stripBom(editor.getValue());
         const params = new URLSearchParams();
+        if (cpuSelect.value !== defaultCpu)
+            params.set("cpu", cpuSelect.value);
         if (outputFormat.value !== "arrows")
             params.set("output", outputFormat.value);
         if (source.trim())
@@ -120,6 +135,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     outputFormat.addEventListener("change", () => {
         compileNow();
         updateHash();
+    });
+
+    // A new target computer means new bytes and a new bank layout, not only new text
+    cpuSelect.addEventListener("change", () => {
+        compileNow();
+        updateHash();
+        showBankBoundaries();
     });
 
     // Switching editors keeps the code and the caret; what it costs is redrawing what
