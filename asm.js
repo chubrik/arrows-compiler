@@ -6,7 +6,7 @@ const Args = {
     BYTE: 0x4
 };
 
-const instructions = [
+export const instructions = [
     "adc", "add", "and", "clr", "dec", "hlt", "inc", "jc",
     "jmp", "jnc", "jno", "jns", "jnz", "jo", "js", "jz",
     "ld", "ldi", "mov", "neg", "nop", "not", "or", "rcl",
@@ -14,9 +14,9 @@ const instructions = [
     "test", "xor"
 ];
 
-const registers = ["a", "b", "c", "d"];
+export const registers = ["a", "b", "c", "d"];
 
-const keywords = ["db", "equ"];
+export const keywords = ["db", "equ"];
 
 const operators = ["+", "-"];
 
@@ -43,7 +43,7 @@ class Command {
     }
 }
 
-const commands = [
+export const commands = [
     new Command("nop", [], 0x00),
     new Command("hlt", [], 0x01),
     new Command("jmp", [Args.BYTE], 0x03),
@@ -531,6 +531,7 @@ export class Compiler {
     refs = [];
     names = {};
     statementAddress = 0;
+    lineOffsets = []; // [line, byteOffset] of every statement, in order
 
     constructor(source) {
         this.tokenizer = new Tokenizer(source);
@@ -698,6 +699,7 @@ export class Compiler {
                 const { position } = token;
 
                 this.statementAddress = this.bytes.length;
+                this.lineOffsets.push([position[0], this.statementAddress]);
                 const args = this.parseArgs();
                 if (args == null)
                     continue;
@@ -734,6 +736,7 @@ export class Compiler {
                 const { position } = token;
 
                 this.statementAddress = this.bytes.length;
+                this.lineOffsets.push([position[0], this.statementAddress]);
                 token = this.tokenizer.next();
 
                 if (token.type === Token.KEYWORD && token.value === "db") {

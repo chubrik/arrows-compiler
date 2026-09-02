@@ -1,51 +1,154 @@
 import { Compiler, cp1251chars, cp1251map } from "./asm.js";
 import { buildDisk } from "./builder.js";
+import { createMonacoEditor } from "./editor.js";
+import { createPlainEditor } from "./plain-editor.js";
+import { stripBom } from "./text.js";
+
+const modeKey = "editor-mode";
 
 function compile(asm, format) {
     const compiler = new Compiler(asm);
     compiler.compile();
 
+    const { lineOffsets } = compiler;
+    const byteCount = compiler.bytes.length; // buildDisk() pads and consumes the bytes
+
     if (compiler.errors.length > 0) {
         let errorMessage = `Compilation failed (${compiler.errors.length} error${compiler.errors.length > 1 ? "s" : ""})\n\n`;
         for (const error of compiler.errors)
             errorMessage += `Error at line ${error.position[0] + 1}, column ${error.position[1] + 1}: ${error.message}\n\n`;
-        return errorMessage;
+        return { text: errorMessage, errors: compiler.errors, lineOffsets, byteCount };
     }
 
-    if (compiler.bytes.length === 0)
-        return "";
+    if (byteCount === 0)
+        return { text: "", errors: [], lineOffsets, byteCount };
 
     if (format === "hex")
-        return compiler.bytes.map(byte => "0x" + byte.toString(16).toUpperCase().padStart(2, "0")).join(", ");
+        return { text: compiler.bytes.map(byte => "0x" + byte.toString(16).toUpperCase().padStart(2, "0")).join(", "), errors: [], lineOffsets, byteCount };
 
-    return buildDisk(compiler.bytes);
+    return { text: buildDisk(compiler.bytes), errors: [], lineOffsets, byteCount };
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
     const source = document.getElementById("source");
     const output = document.getElementById("output");
     const outputFormat = document.getElementById("output-format");
+    const editorMode = document.getElementById("editor-mode");
 
-    function update() {
+    const params = new URLSearchParams(location.hash.substring(1));
+    const initialSource = stripBom(decodeFromUrl(params.get("code") || ""));
+    const format = params.get("output");
+    if (format && [...outputFormat.options].some(option => option.value === format))
+        outputFormat.value = format;
+
+    editorMode.value = storedMode();
+
+    // Whichever editor is running, the page talks to it through the same handful of methods
+    async function createEditor(mode, value) {
+        if (mode === "monaco")
+            try {
+                return await createMonacoEditor(source, value);
+            } catch {
+                // Offline, or the CDN is out of reach: the simple editor still compiles, and
+                // the fallback is not remembered — the choice stands for the next visit
+                editorMode.value = "plain";
+            }
+        return createPlainEditor(source, value);
+    }
+
+    let editor = await createEditor(editorMode.value, initialSource);
+    editor.onChange(update);
+
+    let lastResult;
+    let pendingCompile = false;
+
+    function compileNow() {
+        pendingCompile = false;
+        showResult(compile(editor.getValue(), outputFormat.value));
+    }
+
+    function showResult(result) {
+        lastResult = result;
+        output.value = result.text;
+        output.classList.toggle("errors", result.errors.length > 0);
+        editor.setErrors(result.errors);
+    }
+
+    function showBankBoundaries() {
+        editor.setBankBoundaries(lastResult.lineOffsets, lastResult.byteCount);
+    }
+
+    function updateHash() {
+        const source = stripBom(editor.getValue());
         const params = new URLSearchParams();
         if (outputFormat.value !== "arrows")
             params.set("output", outputFormat.value);
-        if (source.value.trim())
-            params.set("code", encodeToUrl(stripBom(source.value)));
+        if (source.trim())
+            params.set("code", encodeToUrl(source));
         const hash = params.toString();
         history.replaceState(null, "", hash ? `${location.pathname}#${hash}` : location.pathname);
-        output.value = compile(source.value, outputFormat.value);
     }
-    source.addEventListener("input", update);
-    outputFormat.addEventListener("change", update);
 
-    source.addEventListener("paste", (event) => {
-        const text = event.clipboardData?.getData("text/plain") ?? "";
-        if (!text.includes("\uFEFF"))
+    let compileTimer;
+    let idleTimer;
+
+    function update() {
+        pendingCompile = true;
+        clearTimeout(compileTimer);
+        compileTimer = setTimeout(compileNow, 10);
+        clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => {
+            if (pendingCompile) {
+                clearTimeout(compileTimer);
+                compileNow();
+            }
+            updateHash();
+            showBankBoundaries();
+        }, 500);
+    }
+
+    outputFormat.addEventListener("change", () => {
+        compileNow();
+        updateHash();
+    });
+
+    // Switching editors keeps the code and the caret; what it costs is redrawing what
+    // lives inside the editor being replaced
+    editorMode.addEventListener("change", async () => {
+        const mode = editorMode.value;
+        try {
+            localStorage.setItem(modeKey, mode);
+        } catch { } // a browser with the storage turned off simply forgets the choice
+        const value = editor.getValue();
+        const { line, column } = editor.getPosition();
+        editor.dispose();
+        editor = await createEditor(mode, value);
+        editor.onChange(update);
+
+        // The text did not change, so there is nothing to compile again: only what lived
+        // inside the old editor has to be put back — the error markers and the separators
+        if (pendingCompile)
+            compileNow();
+        else
+            showResult(lastResult);
+
+        showBankBoundaries();
+        editor.goToPosition(line, column);
+    });
+
+    // A click on an error line in the output jumps to its position in the code;
+    // a click anywhere else in the failed output jumps to the first error
+    const errorPattern = /^Error at line (\d+), column (\d+)/;
+    output.addEventListener("click", () => {
+        if (!output.classList.contains("errors"))
             return;
-        event.preventDefault();
-        source.setRangeText(stripBom(text), source.selectionStart, source.selectionEnd, "end");
-        update();
+        const lines = output.value.split("\n");
+        const lineIndex = output.value.substring(0, output.selectionStart).split("\n").length - 1;
+        const match = lines[lineIndex]?.match(errorPattern)
+            ?? lines.map(line => line.match(errorPattern)).find(Boolean);
+        if (!match)
+            return;
+        editor.goToPosition(+match[1], +match[2]);
     });
 
     const copyButton = document.getElementById("copy");
@@ -62,17 +165,10 @@ document.addEventListener("DOMContentLoaded", () => {
         copyResetTimer = setTimeout(() => copyButton.textContent = "Copy", 1500);
     });
 
-    const params = new URLSearchParams(location.hash.substring(1));
-    source.value = stripBom(decodeFromUrl(params.get("code") || ""));
-    const format = params.get("output");
-    if (format && [...outputFormat.options].some(option => option.value === format))
-        outputFormat.value = format;
-    output.value = compile(source.value, outputFormat.value);
+    compileNow();
+    showBankBoundaries();
+    editor.focus();
 });
-
-function stripBom(value) {
-    return value.replace(/\uFEFF/g, "");
-}
 
 function encodeToUrl(value) {
     const tabbed = value.replace(/    /g, "\x00");
@@ -91,6 +187,16 @@ function encodeToUrl(value) {
         .replace(/\+/g, "-")
         .replace(/\//g, "_")
         .replace(/=+$/, "");
+}
+
+// Monaco is the default; the simple editor is a property of the device, not of the program,
+// so the choice stays out of the URL that gets shared along with the code
+function storedMode() {
+    try {
+        return localStorage.getItem(modeKey) === "plain" ? "plain" : "monaco";
+    } catch {
+        return "monaco";
+    }
 }
 
 function decodeFromUrl(code) {

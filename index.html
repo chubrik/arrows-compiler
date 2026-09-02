@@ -9,14 +9,23 @@
         <link rel="icon" href="favicon.ico">
     </head>
     <body>
-        <textarea id="source" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" autofocus></textarea>
+        <div id="source"></div>
         <div id="output-panel">
             <div id="output-header">
-                <label for="output-format">Output format:</label>
-                <select id="output-format">
-                    <option value="arrows">Arrows Diskette</option>
-                    <option value="hex">HEX Binary</option>
-                </select>
+                <div class="toolbar-group">
+                    <label for="output-format">Output:</label>
+                    <select id="output-format">
+                        <option value="arrows">Arrows Diskette</option>
+                        <option value="hex">HEX Binary</option>
+                    </select>
+                </div>
+                <div class="toolbar-group">
+                    <label for="editor-mode">Editor:</label>
+                    <select id="editor-mode">
+                        <option value="monaco">Advanced</option>
+                        <option value="plain">Simple</option>
+                    </select>
+                </div>
                 <button id="copy">Copy</button>
             </div>
             <textarea id="output" readonly></textarea>
