@@ -1,5 +1,6 @@
 import { Compiler, cp1251chars, cp1251map } from "./v2/asm.js";
 import { buildDisk } from "./builder.js";
+import { builderConfig } from "./v2/builder-config.js";
 import { createMonacoEditor } from "./editor.js";
 import { createPlainEditor } from "./plain-editor.js";
 import { stripBom } from "./text.js";
@@ -32,7 +33,7 @@ function compile(asm, format) {
     if (format === "hex")
         return { text: compiler.bytes.map(byte => "0x" + byte.toString(16).toUpperCase().padStart(2, "0")).join(", "), errors: [], lineOffsets, byteCount };
 
-    return { text: buildDisk(compiler.bytes), errors: [], lineOffsets, byteCount };
+    return { text: buildDisk(compiler.bytes, builderConfig), errors: [], lineOffsets, byteCount };
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
