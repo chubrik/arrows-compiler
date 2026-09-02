@@ -480,6 +480,7 @@ export class Compiler {
     errors = [];
     refs = [];
     names = {};
+    statementAddress = 0;
 
     constructor(source) {
         this.tokenizer = new Tokenizer(source);
@@ -533,7 +534,7 @@ export class Compiler {
         } else if (token.type === Token.NUMBER)
             resolveCallback(this.parseNumber(token));
         else if (token.type === Token.CHAR && token.value === "$")
-            resolveCallback(this.bytes.length);
+            resolveCallback(this.statementAddress);
         else {
             if (required)
                 this.errors.push(new AsmError(token.position, `unexpected ${token}`));
@@ -606,6 +607,7 @@ export class Compiler {
                 const instruction = token.value;
                 const { position } = token;
 
+                this.statementAddress = this.bytes.length;
                 const args = this.parseArgs();
                 if (args == null)
                     continue;
@@ -641,6 +643,7 @@ export class Compiler {
                 const name = token.value;
                 const { position } = token;
 
+                this.statementAddress = this.bytes.length;
                 token = this.tokenizer.next();
 
                 if (token.type === Token.KEYWORD && token.value === "db") {
