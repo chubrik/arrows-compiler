@@ -541,34 +541,40 @@ export class Compiler {
             return false;
         }
         this.tokenizer.next();
-        return true;
+        return token;
     }
 
     parseNumber(token) {
-        try {
-            if (token.value[0] === "0" && token.value.length > 1)
-                if (token.value.length === 2)
-                    return parseInt(token.value.slice(1), 8);
-                else
-                    switch (token.value[1].toLowerCase()) {
-                        case "x":
-                            return parseInt(token.value.slice(2), 16);
-                        case "b":
-                            return parseInt(token.value.slice(2), 2);
-                    }
-            return parseInt(token.value);
-        } catch {
+        const value = this.parseNumberValue(token);
+        if (value == null)
             this.errors.push(new AsmError(token.position, `invalid number ${token.value}`));
-        }
+        return value;
+    }
+
+    parseNumberValue(token) {
+        if (token.value[0] === "0" && token.value.length > 1)
+            if (token.value.length === 2)
+                return parseIntStrict(token.value.slice(1), 8);
+            else
+                switch (token.value[1].toLowerCase()) {
+                    case "x":
+                        return parseIntStrict(token.value.slice(2), 16);
+                    case "b":
+                        return parseIntStrict(token.value.slice(2), 2);
+                }
+        return parseIntStrict(token.value, 10);
     }
 
     parseExpression(resolveCallback, required = false) {
         const ref = new RefExpression(resolveCallback);
 
-        if (this.parseValue(ref.set, required)) {
+        const firstToken = this.parseValue(ref.set, required);
+        if (firstToken) {
             let token;
+            let single = true;
             while ((token = this.tokenizer.lookahead()).type === Token.OPERATOR) {
                 this.tokenizer.next();
+                single = false;
                 switch (token.value) {
                     case "+":
                         if (!this.parseValue(ref.add(), required))
@@ -580,6 +586,15 @@ export class Compiler {
                         break;
                 }
             }
+
+            // A standalone literal must fit in a byte; expression components
+            // may exceed it, the result is wrapped modulo 256 instead.
+            if (single && firstToken.type === Token.NUMBER) {
+                const value = this.parseNumberValue(firstToken);
+                if (value != null && value > 255)
+                    this.errors.push(new AsmError(firstToken.position, `number ${firstToken.value} is out of range 0..255`));
+            }
+
             ref.done();
             return true;
         }
@@ -651,7 +666,7 @@ export class Compiler {
                     do {
                         const offset = this.bytes.length;
                         this.bytes.push(0x00);
-                        this.parseExpression((value) => this.bytes[offset] = value, true);
+                        this.parseExpression((value) => this.bytes[offset] = value & 0xFF, true);
                     } while ((token = this.tokenizer.lookahead()).type === Token.CHAR && token.value === "," && this.tokenizer.next())
                 } else if (token.type === Token.KEYWORD && token.value === "equ")
                     this.parseExpression((value) => this.resolveReference(name, value), true);
@@ -675,4 +690,15 @@ export class Compiler {
         if (this.bytes.length > 256)
             this.errors.push(new AsmError([0, 0], "memory overflow"));
     }
+}
+
+const radixPatterns = {
+    2: /^[01]+$/,
+    8: /^[0-7]+$/,
+    10: /^[0-9]+$/,
+    16: /^[0-9a-f]+$/i
+};
+
+function parseIntStrict(string, radix) {
+    return radixPatterns[radix].test(string) ? parseInt(string, radix) : null;
 }
