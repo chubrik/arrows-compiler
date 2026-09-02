@@ -4,6 +4,7 @@ import { stripBom } from "./text.js";
 
 const monacoBase = "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/";
 const languageId = "arrows-asm";
+const tabSize = 4;
 
 let loading = null;
 let registered = false;
@@ -62,7 +63,7 @@ export async function createMonacoEditor(container, initialValue) {
         rulers: [100],
         automaticLayout: true,
         scrollBeyondLastLine: false,
-        tabSize: 4,
+        tabSize,
         insertSpaces: true,
         detectIndentation: false,
         wordBasedSuggestions: "off",
@@ -74,6 +75,7 @@ export async function createMonacoEditor(container, initialValue) {
     editor.getModel().setEOL(monaco.editor.EndOfLineSequence.LF);
 
     normalizePastes(monaco, editor);
+    outdentAtCaret(monaco, editor);
 
     return {
         getValue: () => editor.getValue(),
@@ -122,6 +124,39 @@ function setErrorMarkers(monaco, editor, errors) {
         };
     });
     monaco.editor.setModelMarkers(model, "arrows", markers);
+}
+
+// Shift+Tab pulls the whole line back to the previous tab stop, wherever the caret stands;
+// this one takes away only the spaces the caret sits behind, the way the simple editor does.
+// A selection still goes to the built-in outdent, which shifts every line of it
+function outdentAtCaret(monaco, editor) {
+    editor.addAction({
+        id: "arrows.outdent-at-caret",
+        label: "Outdent at the caret",
+        keybindings: [monaco.KeyMod.Shift | monaco.KeyCode.Tab],
+        run: () => {
+            const selections = editor.getSelections();
+            if (selections.some(selection => !selection.isEmpty())) {
+                editor.trigger("keyboard", "editor.action.outdentLines", null);
+                return;
+            }
+            const model = editor.getModel();
+            const edits = [];
+            const carets = [];
+            for (const selection of selections) {
+                const { lineNumber, column } = selection.getPosition();
+                const width = (column - 1) % tabSize || tabSize;
+                const start = Math.max(1, column - width);
+                const spaces = model.getValueInRange(new monaco.Range(lineNumber, start, lineNumber, column))
+                    .match(/ *$/)[0].length;
+                if (spaces > 0)
+                    edits.push({ range: new monaco.Range(lineNumber, column - spaces, lineNumber, column), text: "" });
+                carets.push(new monaco.Selection(lineNumber, column - spaces, lineNumber, column - spaces));
+            }
+            if (edits.length > 0)
+                editor.executeEdits("outdent-at-caret", edits, carets);
+        }
+    });
 }
 
 // The pasted code is cleaned up in place: the undo history and the caret survive, which
