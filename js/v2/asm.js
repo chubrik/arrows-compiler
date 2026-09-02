@@ -1,3 +1,5 @@
+import { cp1251map } from "../text.js";
+
 const Args = {
     A: 0x0,
     B: 0x1,
@@ -317,12 +319,6 @@ class Token {
 const whitespace = /^[^\S\n]$/; // including the BOM but excluding "\n", which is a token
 const digit = /^[0-9]$/;
 const letter = /^[a-z]$/i;
-
-export const cp1251chars = "ЂЃ‚ѓ„…†‡€‰Љ‹ЊЌЋЏђ‘’“”•–—?™љ›њќћџ ЎўЈ¤Ґ¦§Ё©Є«¬­®Ї°±Ііґµ¶·ё№є»јЅѕїАБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдежзийклмнопрстуфхцчшщъыьэюя";
-export const cp1251map = {};
-
-for (let i = 0; i < cp1251chars.length; ++i)
-    cp1251map[cp1251chars[i]] = 128 + i;
 
 class Tokenizer {
     line = 0;

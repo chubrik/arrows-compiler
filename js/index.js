@@ -1,9 +1,9 @@
-import { Compiler, cp1251chars, cp1251map } from "./v2/asm.js";
+import { Compiler } from "./v2/asm.js";
 import { buildDisk } from "./builder.js";
 import { builderConfig } from "./v2/builder-config.js";
 import { createMonacoEditor } from "./editor.js";
 import { createPlainEditor } from "./plain-editor.js";
-import { stripBom } from "./text.js";
+import { cp1251chars, cp1251map, stripBom } from "./text.js";
 
 const modeKey = "editor-mode";
 const themeKey = "theme";
