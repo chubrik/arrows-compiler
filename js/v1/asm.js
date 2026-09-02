@@ -662,10 +662,10 @@ export class Compiler {
                     continue;
                 }
 
-                if (name in names) {
+                if (name in names)
                     this.errors.push(new AsmError(position, `label ${name} is already defined`));
-                    continue;
-                }
+                else
+                    names[name] = true;
             } else
                 this.errors.push(new AsmError(token.position, `unexpected ${token}`));
 
