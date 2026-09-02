@@ -1,5 +1,5 @@
-import { Compiler, commands, instructions, registers, keywords } from "./asm.js";
-import { describeDevices, devicePort, devicePortDoc, instructionDocs } from "./docs.js";
+import { Compiler, commands, instructions, registers, keywords } from "./v2/asm.js";
+import { describeDevices, devicePort, devicePortDoc, instructionDocs } from "./v2/docs.js";
 import { stripBom } from "./text.js";
 
 const monacoBase = "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/";

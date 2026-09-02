@@ -1,4 +1,4 @@
-import { Compiler, cp1251chars, cp1251map } from "./asm.js";
+import { Compiler, cp1251chars, cp1251map } from "./v2/asm.js";
 import { buildDisk } from "./builder.js";
 import { createMonacoEditor } from "./editor.js";
 import { createPlainEditor } from "./plain-editor.js";
