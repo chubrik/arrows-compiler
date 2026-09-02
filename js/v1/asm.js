@@ -7,16 +7,16 @@ const Args = {
     BYTE: 0x5
 };
 
-const instructions = [
+export const instructions = [
     "adc", "add", "and", "dec", "exp", "hlt", "inc", "jc",
     "jmp", "jnc", "jno", "jns", "jnz", "jo", "js", "jz",
     "ld", "ldi", "mov", "neg", "not", "or", "rcl", "rcr",
     "rnd", "sar", "sbb", "shl", "shr", "st", "sub", "xor"
 ];
 
-const registers = ["a", "b", "c", "d"];
+export const registers = ["a", "b", "c", "d"];
 
-const keywords = ["db", "equ"];
+export const keywords = ["db", "equ"];
 
 const operators = ["+", "-"];
 
@@ -43,7 +43,7 @@ class Command {
     }
 }
 
-const commands = [
+export const commands = [
     new Command("mov", [Args.A, Args.ZERO], 0x00),
     new Command("mov", [Args.A, Args.B], 0x01),
     new Command("mov", [Args.A, Args.C], 0x02),
