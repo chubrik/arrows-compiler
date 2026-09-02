@@ -173,6 +173,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         editor.goToPosition(+match[1], +match[2]);
     });
 
+    document.addEventListener("keydown", (event) => {
+        if ((event.ctrlKey || event.metaKey) && (event.code === "KeyS" || event.key.toLowerCase() === "s"))
+            event.preventDefault();
+    });
+
     const copyButton = document.getElementById("copy");
     let copyResetTimer;
     copyButton.addEventListener("click", async () => {

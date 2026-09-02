@@ -9,6 +9,8 @@
     --accent: #ffc107;
 
     color-scheme: dark;
+    overflow: hidden; /* The page never scrolls */
+    overscroll-behavior: none;
 }
 
 :root[data-theme="light"] {
@@ -25,6 +27,7 @@
 body {
     margin: 0;
     height: 100vh;
+    height: 100dvh; /* A tablet measures vh without the browser panels */
     display: flex;
     background: var(--background);
     color: var(--foreground);
