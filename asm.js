@@ -313,7 +313,7 @@ class Token {
     }
 }
 
-const whitespace = /^[ \r]$/;
+const whitespace = /^[^\S\n]$/; // including the BOM but excluding "\n", which is a token
 const digit = /^[0-9]$/;
 const letter = /^[a-z]$/i;
 
