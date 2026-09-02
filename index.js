@@ -1,6 +1,10 @@
 import { Compiler, cp1251chars, cp1251map } from "./asm.js";
 import { buildDisk } from "./builder.js";
-import { createEditor, updateBankBoundaries } from "./editor.js";
+import { createMonacoEditor } from "./editor.js";
+import { createPlainEditor } from "./plain-editor.js";
+import { stripBom } from "./text.js";
+
+const modeKey = "editor-mode";
 
 function compile(asm, format) {
     const compiler = new Compiler(asm);
@@ -26,8 +30,10 @@ function compile(asm, format) {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
+    const source = document.getElementById("source");
     const output = document.getElementById("output");
     const outputFormat = document.getElementById("output-format");
+    const editorMode = document.getElementById("editor-mode");
 
     const params = new URLSearchParams(location.hash.substring(1));
     const initialSource = stripBom(decodeFromUrl(params.get("code") || ""));
@@ -35,24 +41,23 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (format && [...outputFormat.options].some(option => option.value === format))
         outputFormat.value = format;
 
-    const { monaco, editor } = await createEditor(document.getElementById("source"), initialSource);
+    editorMode.value = storedMode();
 
-    function setErrorMarkers(errors) {
-        const model = editor.getModel();
-        const markers = errors.map(({ position: [line, column], message }) => {
-            const start = model.validatePosition({ lineNumber: line + 1, column: column + 1 });
-            const word = model.getWordAtPosition(start);
-            return {
-                severity: monaco.MarkerSeverity.Error,
-                message,
-                startLineNumber: start.lineNumber,
-                startColumn: word?.startColumn ?? start.column,
-                endLineNumber: start.lineNumber,
-                endColumn: word?.endColumn ?? start.column + 1
-            };
-        });
-        monaco.editor.setModelMarkers(model, "arrows", markers);
+    // Whichever editor is running, the page talks to it through the same handful of methods
+    async function createEditor(mode, value) {
+        if (mode === "monaco")
+            try {
+                return await createMonacoEditor(source, value);
+            } catch {
+                // Offline, or the CDN is out of reach: the simple editor still compiles, and
+                // the fallback is not remembered — the choice stands for the next visit
+                editorMode.value = "plain";
+            }
+        return createPlainEditor(source, value);
     }
+
+    let editor = await createEditor(editorMode.value, initialSource);
+    editor.onChange(update);
 
     let lastResult;
     let pendingCompile = false;
@@ -66,11 +71,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         lastResult = result;
         output.value = result.text;
         output.classList.toggle("errors", result.errors.length > 0);
-        setErrorMarkers(result.errors);
+        editor.setErrors(result.errors);
     }
 
     function showBankBoundaries() {
-        updateBankBoundaries(editor, lastResult.lineOffsets, lastResult.byteCount);
+        editor.setBankBoundaries(lastResult.lineOffsets, lastResult.byteCount);
     }
 
     function updateHash() {
@@ -102,8 +107,34 @@ document.addEventListener("DOMContentLoaded", async () => {
         }, 500);
     }
 
-    editor.onDidChangeModelContent(update);
-    outputFormat.addEventListener("change", update);
+    outputFormat.addEventListener("change", () => {
+        compileNow();
+        updateHash();
+    });
+
+    // Switching editors keeps the code and the caret; what it costs is redrawing what
+    // lives inside the editor being replaced
+    editorMode.addEventListener("change", async () => {
+        const mode = editorMode.value;
+        try {
+            localStorage.setItem(modeKey, mode);
+        } catch { } // a browser with the storage turned off simply forgets the choice
+        const value = editor.getValue();
+        const { line, column } = editor.getPosition();
+        editor.dispose();
+        editor = await createEditor(mode, value);
+        editor.onChange(update);
+
+        // The text did not change, so there is nothing to compile again: only what lived
+        // inside the old editor has to be put back — the error markers and the separators
+        if (pendingCompile)
+            compileNow();
+        else
+            showResult(lastResult);
+
+        showBankBoundaries();
+        editor.goToPosition(line, column);
+    });
 
     // A click on an error line in the output jumps to its position in the code;
     // a click anywhere else in the failed output jumps to the first error
@@ -117,48 +148,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             ?? lines.map(line => line.match(errorPattern)).find(Boolean);
         if (!match)
             return;
-        const position = { lineNumber: +match[1], column: +match[2] };
-        editor.setPosition(position);
-        editor.revealPositionInCenterIfOutsideViewport(position);
-        editor.focus();
-    });
-
-    editor.onDidPaste((event) => {
-        const model = editor.getModel();
-        const pasted = model.getValueInRange(event.range);
-        if (pasted.includes("\uFEFF"))
-            editor.executeEdits("strip-bom", [{ range: event.range, text: stripBom(pasted) }]);
-
-        // Trim the trailing whitespace on every line
-        const trims = [];
-        for (let i = 1; i <= model.getLineCount(); ++i) {
-            const line = model.getLineContent(i);
-            const trailing = line.match(/[ \t]+$/);
-            if (trailing)
-                trims.push({
-                    range: new monaco.Range(i, line.length - trailing[0].length + 1, i, line.length + 1),
-                    text: ""
-                });
-        }
-        if (trims.length > 0)
-            editor.executeEdits("trim-trailing", trims);
-
-        // After a paste the document should end with exactly one newline
-        const value = model.getValue();
-        const trailing = value.match(/\n*$/)[0].length;
-        if (trailing !== 1) {
-            const start = model.getPositionAt(value.length - trailing);
-            const end = model.getPositionAt(value.length);
-            editor.executeEdits("normalize-eol", [{
-                range: new monaco.Range(start.lineNumber, start.column, end.lineNumber, end.column),
-                text: "\n"
-            }]);
-        }
-
-        // Monaco has already scrolled to where the paste ended, a line above the newline just
-        // appended; this handler runs after everything the paste set in motion, so the last
-        // word on where to look is ours
-        editor.revealPosition(editor.getPosition());
+        editor.goToPosition(+match[1], +match[2]);
     });
 
     const copyButton = document.getElementById("copy");
@@ -180,10 +170,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     editor.focus();
 });
 
-function stripBom(value) {
-    return value.replace(/\uFEFF/g, "");
-}
-
 function encodeToUrl(value) {
     const tabbed = value.replace(/    /g, "\x00");
     const buffer = [];
@@ -201,6 +187,16 @@ function encodeToUrl(value) {
         .replace(/\+/g, "-")
         .replace(/\//g, "_")
         .replace(/=+$/, "");
+}
+
+// Monaco is the default; the simple editor is a property of the device, not of the program,
+// so the choice stays out of the URL that gets shared along with the code
+function storedMode() {
+    try {
+        return localStorage.getItem(modeKey) === "plain" ? "plain" : "monaco";
+    } catch {
+        return "monaco";
+    }
 }
 
 function decodeFromUrl(code) {

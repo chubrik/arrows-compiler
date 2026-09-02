@@ -1,11 +1,17 @@
 import { Compiler, commands, instructions, registers, keywords } from "./asm.js";
 import { describeDevices, devicePort, devicePortDoc, instructionDocs } from "./docs.js";
+import { stripBom } from "./text.js";
 
 const monacoBase = "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/";
 const languageId = "arrows-asm";
 
-export function createEditor(container, initialValue) {
-    return new Promise((resolve) => {
+let loading = null;
+let registered = false;
+
+// The loader tag used to stand in the page head, so every visitor paid for Monaco; the simple
+// editor must not, and the megabytes are fetched only once this editor is actually chosen
+function loadMonaco() {
+    return loading ??= new Promise((resolve, reject) => {
         // Monaco workers can't be loaded cross-origin directly, so proxy them
         // through a data: URL that importScripts the CDN worker.
         self.MonacoEnvironment = {
@@ -14,41 +20,149 @@ export function createEditor(container, initialValue) {
                 `importScripts("${monacoBase}vs/base/worker/workerMain.js");`)
         };
 
-        require.config({ paths: { vs: monacoBase + "vs" } });
-        require(["vs/editor/editor.main"], () => {
-            const monaco = window.monaco;
-            registerLanguage(monaco);
-            registerCompletion(monaco);
-            registerDefinition(monaco);
-            registerHover(monaco);
-            registerOccurrences(monaco);
-            registerReferences(monaco);
-            registerRename(monaco);
-            registerFolding(monaco);
+        const script = document.createElement("script");
+        script.src = monacoBase + "vs/loader.js";
+        script.onload = () => {
+            require.config({ paths: { vs: monacoBase + "vs" } });
+            require(["vs/editor/editor.main"], () => resolve(window.monaco));
+        };
+        script.onerror = () => {
+            loading = null; // the CDN may answer by the time the user tries again
+            script.remove();
+            reject(new Error("Monaco Editor is unreachable"));
+        };
+        document.head.appendChild(script);
+    });
+}
 
-            const editor = monaco.editor.create(container, {
-                value: initialValue,
-                language: languageId,
-                theme: "arrows-dark",
-                fontFamily: "ui-monospace, Consolas, Menlo, monospace",
-                fontSize: 14,
-                minimap: { enabled: false },
-                rulers: [100],
-                automaticLayout: true,
-                scrollBeyondLastLine: false,
-                tabSize: 4,
-                insertSpaces: true,
-                detectIndentation: false,
-                wordBasedSuggestions: "off",
-                bracketPairColorization: { enabled: false }, // an assembly program has no brackets
-                showFoldingControls: "always" // the banks are few, let their arrows be visible
-            });
+export async function createMonacoEditor(container, initialValue) {
+    const monaco = await loadMonaco();
 
-            // The compiler and the URL hash expect LF regardless of platform
-            editor.getModel().setEOL(monaco.editor.EndOfLineSequence.LF);
+    // The providers belong to the language, not to the editor: registering them again after
+    // a switch back from the simple editor would answer every request twice
+    if (!registered) {
+        registerLanguage(monaco);
+        registerCompletion(monaco);
+        registerDefinition(monaco);
+        registerHover(monaco);
+        registerOccurrences(monaco);
+        registerReferences(monaco);
+        registerRename(monaco);
+        registerFolding(monaco);
+        registered = true;
+    }
 
-            resolve({ monaco, editor });
-        });
+    const editor = monaco.editor.create(container, {
+        value: initialValue,
+        language: languageId,
+        theme: "arrows-dark",
+        fontFamily: "ui-monospace, Consolas, Menlo, monospace",
+        fontSize: 14,
+        minimap: { enabled: false },
+        rulers: [100],
+        automaticLayout: true,
+        scrollBeyondLastLine: false,
+        tabSize: 4,
+        insertSpaces: true,
+        detectIndentation: false,
+        wordBasedSuggestions: "off",
+        bracketPairColorization: { enabled: false }, // an assembly program has no brackets
+        showFoldingControls: "always" // the banks are few, let their arrows be visible
+    });
+
+    // The compiler and the URL hash expect LF regardless of platform
+    editor.getModel().setEOL(monaco.editor.EndOfLineSequence.LF);
+
+    normalizePastes(monaco, editor);
+
+    return {
+        getValue: () => editor.getValue(),
+
+        getPosition: () => {
+            const { lineNumber, column } = editor.getPosition();
+            return { line: lineNumber, column };
+        },
+
+        goToPosition: (line, column) => {
+            const position = { lineNumber: line, column };
+            editor.setPosition(position);
+            editor.revealPositionInCenterIfOutsideViewport(position);
+            editor.focus();
+        },
+
+        focus: () => editor.focus(),
+        onChange: (handler) => editor.onDidChangeModelContent(handler),
+        setErrors: (errors) => setErrorMarkers(monaco, editor, errors),
+        setBankBoundaries: (lineOffsets, byteCount) => updateBankBoundaries(editor, lineOffsets, byteCount),
+
+        dispose: () => {
+            editor.getModel().dispose();
+            editor.dispose();
+            // The zones and the collections belong to the editor that is going away
+            bankZoneIds = [];
+            overflowDecorations = null;
+            longLineDecorations = null;
+            bankFoldingRanges = [];
+        }
+    };
+}
+
+function setErrorMarkers(monaco, editor, errors) {
+    const model = editor.getModel();
+    const markers = errors.map(({ position: [line, column], message }) => {
+        const start = model.validatePosition({ lineNumber: line + 1, column: column + 1 });
+        const word = model.getWordAtPosition(start);
+        return {
+            severity: monaco.MarkerSeverity.Error,
+            message,
+            startLineNumber: start.lineNumber,
+            startColumn: word?.startColumn ?? start.column,
+            endLineNumber: start.lineNumber,
+            endColumn: word?.endColumn ?? start.column + 1
+        };
+    });
+    monaco.editor.setModelMarkers(model, "arrows", markers);
+}
+
+// The pasted code is cleaned up in place: the undo history and the caret survive, which
+// replacing the whole text would not allow
+function normalizePastes(monaco, editor) {
+    editor.onDidPaste((event) => {
+        const model = editor.getModel();
+        const pasted = model.getValueInRange(event.range);
+        if (pasted.includes("\uFEFF"))
+            editor.executeEdits("strip-bom", [{ range: event.range, text: stripBom(pasted) }]);
+
+        // Trim the trailing whitespace on every line
+        const trims = [];
+        for (let i = 1; i <= model.getLineCount(); ++i) {
+            const line = model.getLineContent(i);
+            const trailing = line.match(/[ \t]+$/);
+            if (trailing)
+                trims.push({
+                    range: new monaco.Range(i, line.length - trailing[0].length + 1, i, line.length + 1),
+                    text: ""
+                });
+        }
+        if (trims.length > 0)
+            editor.executeEdits("trim-trailing", trims);
+
+        // After a paste the document should end with exactly one newline
+        const value = model.getValue();
+        const trailing = value.match(/\n*$/)[0].length;
+        if (trailing !== 1) {
+            const start = model.getPositionAt(value.length - trailing);
+            const end = model.getPositionAt(value.length);
+            editor.executeEdits("normalize-eol", [{
+                range: new monaco.Range(start.lineNumber, start.column, end.lineNumber, end.column),
+                text: "\n"
+            }]);
+        }
+
+        // Monaco has already scrolled to where the paste ended, a line above the newline just
+        // appended; this handler runs after everything the paste set in motion, so the last
+        // word on where to look is ours
+        editor.revealPosition(editor.getPosition());
     });
 }
 
@@ -72,7 +186,7 @@ function registerFolding(monaco) {
 
 // Draw a separator line between the lines of code where a 128-byte memory bank boundary passes,
 // and mark the statements whose bytes span such a boundary
-export function updateBankBoundaries(editor, lineOffsets, byteCount) {
+function updateBankBoundaries(editor, lineOffsets, byteCount) {
     const model = editor.getModel();
     const boundaries = [];
     const overflows = [];
