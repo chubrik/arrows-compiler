@@ -70,7 +70,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const theme = document.documentElement.dataset.theme;
         if (mode === "monaco")
             try {
-                return await createMonacoEditor(source, value, theme);
+                return await createMonacoEditor(source, value, theme, cpuSelect.value);
             } catch {
                 // Offline, or the CDN is out of reach: the simple editor still compiles, and
                 // the fallback is not remembered — the choice stands for the next visit
@@ -137,8 +137,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         updateHash();
     });
 
-    // A new target computer means new bytes and a new bank layout, not only new text
+    // A new target computer means a new dialect in the editor, new bytes and a new bank layout
     cpuSelect.addEventListener("change", () => {
+        editor.setCpu(cpuSelect.value);
         compileNow();
         updateHash();
         showBankBoundaries();

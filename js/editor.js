@@ -1,7 +1,26 @@
-import { Compiler } from "./v2/asm.js";
-import { commands, instructions, registers, keywords } from "./v2/reference.js";
-import { describeDevices, devicePort, devicePortDoc, instructionDocs } from "./v2/docs.js";
 import { stripBom } from "./text.js";
+import { Compiler as CompilerV1 } from "./v1/asm.js";
+import * as docsV1 from "./v1/docs.js";
+import * as referenceV1 from "./v1/reference.js";
+import { Compiler as CompilerV2 } from "./v2/asm.js";
+import * as docsV2 from "./v2/docs.js";
+import * as referenceV2 from "./v2/reference.js";
+
+// Everything the editor knows about one assembly dialect, bundled; the page picks the
+// current pack through setCpu, matching the compiler that fills the output panel
+function dialectPack(Compiler, { argTypeNames, commands, instructions, registers, keywords }, docs) {
+    return {
+        Compiler, argTypeNames, commands, instructions, registers, keywords, docs,
+        reservedNames: new Set([...instructions, ...registers, ...keywords])
+    };
+}
+
+const cpuDialects = {
+    v1: dialectPack(CompilerV1, referenceV1, docsV1),
+    v2: dialectPack(CompilerV2, referenceV2, docsV2)
+};
+
+let dialect = cpuDialects.v2;
 
 const monacoBase = "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/";
 const languageId = "arrows-asm";
@@ -37,8 +56,9 @@ function loadMonaco() {
     });
 }
 
-export async function createMonacoEditor(container, initialValue, theme) {
+export async function createMonacoEditor(container, initialValue, theme, cpu) {
     const monaco = await loadMonaco();
+    dialect = cpuDialects[cpu] ?? cpuDialects.v2;
 
     // The providers belong to the language, not to the editor: registering them again after
     // a switch back from the simple editor would answer every request twice
@@ -52,7 +72,8 @@ export async function createMonacoEditor(container, initialValue, theme) {
         registerRename(monaco);
         registerFolding(monaco);
         registered = true;
-    }
+    } else
+        applyTokenizer(monaco); // the previous editor may have spoken the other dialect
 
     const editor = monaco.editor.create(container, {
         value: initialValue,
@@ -96,6 +117,10 @@ export async function createMonacoEditor(container, initialValue, theme) {
         focus: () => editor.focus(),
         onChange: (handler) => editor.onDidChangeModelContent(handler),
         setTheme: (theme) => monaco.editor.setTheme(themeName(theme)),
+        setCpu: (cpu) => {
+            dialect = cpuDialects[cpu] ?? cpuDialects.v2;
+            applyTokenizer(monaco);
+        },
         setErrors: (errors) => setErrorMarkers(monaco, editor, errors),
         setBankBoundaries: (lineOffsets, byteCount) => updateBankBoundaries(editor, lineOffsets, byteCount),
 
@@ -401,20 +426,14 @@ function findBoundaryLine(model, statementLine) {
     return top - 1;
 }
 
-function registerLanguage(monaco) {
-    monaco.languages.register({ id: languageId });
-
-    monaco.languages.setLanguageConfiguration(languageId, {
-        comments: { lineComment: ";" },
-        autoClosingPairs: [{ open: "\"", close: "\"" }],
-        surroundingPairs: [{ open: "\"", close: "\"" }]
-    });
-
+// The token lists differ between the dialects, so a CPU switch installs the tokenizer anew;
+// Monaco re-tokenizes every open model when the provider is replaced
+function applyTokenizer(monaco) {
     monaco.languages.setMonarchTokensProvider(languageId, {
         defaultToken: "",
-        instructions,
-        registers,
-        keywords,
+        instructions: dialect.instructions,
+        registers: dialect.registers,
+        keywords: dialect.keywords,
         tokenizer: {
             root: [
                 [/;.*/, "comment"],
@@ -438,6 +457,18 @@ function registerLanguage(monaco) {
             ]
         }
     });
+}
+
+function registerLanguage(monaco) {
+    monaco.languages.register({ id: languageId });
+
+    monaco.languages.setLanguageConfiguration(languageId, {
+        comments: { lineComment: ";" },
+        autoClosingPairs: [{ open: "\"", close: "\"" }],
+        surroundingPairs: [{ open: "\"", close: "\"" }]
+    });
+
+    applyTokenizer(monaco);
 
     monaco.editor.defineTheme("arrows-dark", {
         base: "vs-dark",
@@ -485,7 +516,7 @@ function registerCompletion(monaco) {
                 ({ label, kind, detail, range, sortText, insertText: label });
 
             const beforeWord = line.substring(0, word.startColumn - 1);
-            const instructionItems = () => instructions.map(name =>
+            const instructionItems = () => dialect.instructions.map(name =>
                 item(name, monaco.languages.CompletionItemKind.Keyword, "instruction", name));
 
             // Start of a statement: a line start or right after a "label:"
@@ -494,16 +525,16 @@ function registerCompletion(monaco) {
 
             // Second word after a name: "db" or "equ"
             const firstWord = beforeWord.match(/^\s*([a-zA-Z_]\w*)\s+$/);
-            if (firstWord && !reservedNames.has(firstWord[1]))
+            if (firstWord && !dialect.reservedNames.has(firstWord[1]))
                 return {
-                    suggestions: keywords.map(name =>
+                    suggestions: dialect.keywords.map(name =>
                         item(name, monaco.languages.CompletionItemKind.Keyword, "directive", name))
                 };
 
             // Argument position: registers (except in db/equ values) and known names
             const suggestions = [];
             if (!/\b(?:db|equ)\b/.test(beforeWord))
-                for (const name of registers)
+                for (const name of dialect.registers)
                     suggestions.push(item(name, monaco.languages.CompletionItemKind.Variable, "register", "0" + name));
             for (const [name, info] of collectNames(monaco, model))
                 suggestions.push(item(name, info.kind, info.detail, "1" + name));
@@ -530,8 +561,6 @@ function registerDefinition(monaco) {
     });
 }
 
-const argTypeNames = ["a", "b", "c", "d", "addr"]; // indexed by the Args values
-
 function registerHover(monaco) {
     monaco.languages.registerHoverProvider(languageId, {
         provideHover: (model, position) => {
@@ -546,26 +575,34 @@ function registerHover(monaco) {
             const name = word.word;
             const markdown = (...values) => ({ range, contents: values.map(value => ({ value })) });
 
-            if (instructions.includes(name)) {
-                const doc = instructionDocs[name];
-                const nameCommands = commands.filter(command => command.instruction === name);
-                const forms = nameCommands.map(command => `${name} ${command.args.map(arg =>
-                    argTypeNames[arg] === "addr" && name === "ldi" ? "value" : argTypeNames[arg]).join(", ")}`.trim());
-                const width = Math.max(...forms.map(form => form.length));
+            if (dialect.instructions.includes(name)) {
+                const doc = dialect.docs.instructionDocs[name];
+
+                // Several opcodes may encode the same form; the first one is what the compiler
+                // emits, and the alternatives are a specification detail the hover can spare
+                const forms = new Map();
+                for (const command of dialect.commands.filter(command => command.instruction === name)) {
+                    const form = `${name} ${command.args.map(arg =>
+                        dialect.argTypeNames[arg] === "addr" && name === "ldi" ? "value" : dialect.argTypeNames[arg]).join(", ")}`.trim();
+                    if (!forms.has(form))
+                        forms.set(form, command.opcode);
+                }
+                const width = Math.max(...[...forms.keys()].map(form => form.length));
+
                 // Markdown hard break (two trailing spaces) keeps the variants close together
                 const contents = [(doc.variants ?? [doc]).map(variant =>
                     `**${name}**${variant.signature ? " " + variant.signature : ""} — ${variant.text}`).join("  \n")];
                 if (doc.flags)
                     contents.push(doc.flags === "–" ? "No effect on flags" : `Affects flags: ${doc.flags}`);
-                contents.push("```arrows-asm\n" + forms.map((form, index) =>
-                    `${form.padEnd(width)}  ; opcode 0x${formatHex(nameCommands[index].opcode)}`).join("\n") + "\n```");
+                contents.push("```arrows-asm\n" + [...forms].map(([form, opcode]) =>
+                    `${form.padEnd(width)}  ; opcode 0x${formatHex(opcode)}`).join("\n") + "\n```");
                 return markdown(...contents);
             }
 
-            if (registers.includes(name))
+            if (dialect.registers.includes(name))
                 return markdown(`**${name}** — register`);
             if (name === "db")
-                return markdown("**db** — define bytes: numbers, chars, strings, expressions");
+                return markdown(dialect.docs.dbDoc);
             if (name === "equ")
                 return markdown("**equ** — define a named constant");
 
@@ -595,14 +632,15 @@ function formatBinary(value) {
     return "0b" + value.toString(2).padStart(8, "0");
 }
 
-// The port that connects the output devices. A db byte can land on the port itself: then the
-// disk connects the devices as it loads, and the byte says which ones
+// A special port of the current CPU. A db byte can land on the port itself: then the byte
+// takes effect right as the disk loads, and the hover explains what it does
 function describePort(model, address, isData = false) {
-    if (address !== devicePort)
+    const port = dialect.docs.portDocs[address];
+    if (!port)
         return [];
-    const byte = isData ? compiled(model).bytes[devicePort] : null;
-    return byte == null ? [devicePortDoc]
-        : [devicePortDoc, `Loaded ${formatBinary(byte)} — ${describeDevices(byte)}`];
+    const byte = isData ? compiled(model).bytes[address] : null;
+    return byte == null || !port.describeLoaded ? [port.doc]
+        : [port.doc, `Loaded ${formatBinary(byte)} — ${port.describeLoaded(byte)}`];
 }
 
 function parseNumberLiteral(text) {
@@ -652,7 +690,7 @@ function registerRename(monaco) {
             const word = nameAt(model, position);
             if (!word)
                 return { edits: [], rejectReason: "You can only rename labels and constants" };
-            if (!/^[a-zA-Z_]\w*$/.test(newName) || reservedNames.has(newName))
+            if (!/^[a-zA-Z_]\w*$/.test(newName) || dialect.reservedNames.has(newName))
                 return { edits: [], rejectReason: `'${newName}' is not a valid name` };
             return {
                 edits: findOccurrences(monaco, model, word.word).map(range => ({
@@ -678,8 +716,6 @@ function registerRename(monaco) {
     });
 }
 
-const reservedNames = new Set([...instructions, ...registers, ...keywords]);
-
 // A word at the position, unless it is a comment, a string, a number or a reserved name
 function nameAt(model, position) {
     const prefix = model.getLineContent(position.lineNumber).substring(0, position.column - 1);
@@ -687,7 +723,7 @@ function nameAt(model, position) {
         return null;
 
     const word = model.getWordAtPosition(position);
-    if (!word || reservedNames.has(word.word) || /^\d/.test(word.word))
+    if (!word || dialect.reservedNames.has(word.word) || /^\d/.test(word.word))
         return null;
     return word;
 }
@@ -712,13 +748,13 @@ function findOccurrences(monaco, model, name) {
 }
 
 // Completion, definition, hover and occurrences all ask for the same names, several times per
-// keystroke; the model version tells when the previous answer still holds. The callers only
-// read from the map
-let namesCache = { versionId: -1, names: null };
+// keystroke; the model version tells when the previous answer still holds — unless the CPU
+// changed under the same text, hence the dialect in the key. The callers only read from the map
+let namesCache = { versionId: -1, dialect: null, names: null };
 
 function collectNames(monaco, model) {
     const versionId = model.getVersionId();
-    if (namesCache.versionId === versionId)
+    if (namesCache.versionId === versionId && namesCache.dialect === dialect)
         return namesCache.names;
 
     const names = new Map();
@@ -727,27 +763,27 @@ function collectNames(monaco, model) {
         const add = (name, kind, detail) =>
             names.set(name, { kind, detail, lineNumber: i, column: line.search(/\S/) + 1 });
         let match;
-        if ((match = line.match(/^\s*([a-zA-Z_]\w*)\s*:/)) && !reservedNames.has(match[1]))
+        if ((match = line.match(/^\s*([a-zA-Z_]\w*)\s*:/)) && !dialect.reservedNames.has(match[1]))
             add(match[1], monaco.languages.CompletionItemKind.Function, "label");
-        else if ((match = line.match(/^\s*([a-zA-Z_]\w*)\s+db\b/)) && !reservedNames.has(match[1]))
+        else if ((match = line.match(/^\s*([a-zA-Z_]\w*)\s+db\b/)) && !dialect.reservedNames.has(match[1]))
             add(match[1], monaco.languages.CompletionItemKind.Variable, "db");
-        else if ((match = line.match(/^\s*([a-zA-Z_]\w*)\s+equ\b\s*(.*)/)) && !reservedNames.has(match[1]))
+        else if ((match = line.match(/^\s*([a-zA-Z_]\w*)\s+equ\b\s*(.*)/)) && !dialect.reservedNames.has(match[1]))
             add(match[1], monaco.languages.CompletionItemKind.Constant, ("equ " + match[2]).trim());
     }
-    namesCache = { versionId, names };
+    namesCache = { versionId, dialect, names };
     return names;
 }
 
 // A hover asks the compiler for the addresses and the bytes several times while the model
-// stands still
-let compilerCache = { versionId: -1, compiler: null };
+// stands still; the compiler itself is the current dialect's, hence the dialect in the key
+let compilerCache = { versionId: -1, dialect: null, compiler: null };
 
 function compiled(model) {
     const versionId = model.getVersionId();
-    if (compilerCache.versionId !== versionId) {
-        const compiler = new Compiler(model.getValue());
+    if (compilerCache.versionId !== versionId || compilerCache.dialect !== dialect) {
+        const compiler = new dialect.Compiler(model.getValue());
         compiler.compile();
-        compilerCache = { versionId, compiler };
+        compilerCache = { versionId, dialect, compiler };
     }
     return compilerCache.compiler;
 }

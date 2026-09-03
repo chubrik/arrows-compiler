@@ -7,6 +7,8 @@ export const Args = {
     ZERO: 0x5
 };
 
+export const argTypeNames = ["a", "b", "c", "d", "addr", "0"];
+
 export const instructions = [
     "adc", "add", "and", "dec", "exp", "hlt", "inc", "jc",
     "jmp", "jnc", "jno", "jns", "jnz", "jo", "js", "jz",

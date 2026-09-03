@@ -6,6 +6,8 @@ export const Args = {
     BYTE: 0x4
 };
 
+export const argTypeNames = ["a", "b", "c", "d", "addr"];
+
 export const instructions = [
     "adc", "add", "and", "clr", "dec", "hlt", "inc", "jc",
     "jmp", "jnc", "jno", "jns", "jnz", "jo", "js", "jz",
