@@ -3,47 +3,29 @@
 &nbsp;&nbsp;&nbsp;
 🌐 [English](../README.md) | Русский
 
-Этот онлайн-компилятор собирает программы для компьютеров, построенных в
-[«Стрелочках»](https://logic-arrows.io/) — браузерной игре, где из простых стрелочек на клеточном
-поле строятся сложные логические схемы. В левой части он принимает ассемблер, а в правой преобразует
-его в код сохранения, который можно вставить на карту с компьютером и запустить. Существует два
-компьютера, каждый со своим ассемблером, компилятором и кодом сохранения.
-
-<table>
-  <tr>
-    <td valign="top" width="50%">
-      <h3>Компьютер v2</h3>
-      <a href="https://chubrik.github.io/arrows-compiler/">
-        <b>Открыть компилятор</b>
-      </a>
-      <br><br>
-      Информацию о компьютере и его ассемблере, а также примеры программ см. в
-      <a href="https://github.com/chubrik/LogicArrows/blob/main/ru/computer-v2/README.md">
-        документации</a>.
-      <br><br>
-      <a href="https://github.com/chubrik/LogicArrows/blob/main/ru/computer-v2/README.md">
-        <img src="https://raw.githubusercontent.com/chubrik/LogicArrows/refs/heads/main/computer-v2/img/summary.jpg"
-          alt="Компьютер v2">
-      </a>
-    </td>
-    <td valign="top">
-      <h3>Компьютер v1</h3>
-      <a href="https://gulgdev.github.io/chubrik-compiler/">
-        <b>Открыть компилятор</b>
-      </a>
-      <br><br>
-      Информацию о компьютере и его ассемблере, а также примеры программ см. в
-      <a href="https://github.com/chubrik/LogicArrows/blob/main/ru/computer-v1/README.md">
-        документации</a>.
-      <br><br>
-      <a href="https://github.com/chubrik/LogicArrows/blob/main/ru/computer-v1/README.md">
-        <img src="https://raw.githubusercontent.com/chubrik/LogicArrows/refs/heads/main/computer-v1/img/summary.jpg"
-          alt="Компьютер v1">
-      </a>
-    </td>
-  </tr>
-</table>
+Этот онлайн-компилятор собирает программы для
+[двух компьютеров](https://github.com/chubrik/LogicArrows/blob/main/ru/README.md), построенных в
+«Стрелочках» — браузерной игре, где из простых стрелочек на клеточном поле строятся сложные
+логические схемы. В левой части он принимает ассемблер, а в правой преобразует его в код сохранения,
+который можно вставить на карту с компьютером и запустить.
 <br><br>
 
-Автор выражает благодарность разработчику [GulgDev](https://github.com/GulgDev/chubrik-compiler)
-за создание компилятора первой версии, что послужило основой и для второй.
+
+## [Открыть компилятор ⇾](https://chubrik.github.io/arrows-compiler/)
+
+<a href="https://chubrik.github.io/arrows-compiler/"><img src="../img/compiler.png"
+  width="600" height="400" alt="Компилятор стрелочек"></a>
+<br><br>
+
+
+## <a name="links"></a>Ссылки
+
+- [Компьютер v2](https://github.com/chubrik/LogicArrows/blob/main/ru/computer-v2/README.md) –
+  документация, ассемблер и примеры программ
+- [Компьютер v1](https://github.com/chubrik/LogicArrows/blob/main/ru/computer-v1/README.md) –
+  документация, ассемблер и примеры программ
+- [Стрелочки](https://logic-arrows.io/) – официальный сайт игры
+<br><br>
+
+Автор выражает благодарность разработчику [GulgDev](https://github.com/GulgDev) за создание
+компилятора первой версии.
