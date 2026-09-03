@@ -1,4 +1,5 @@
-import { Compiler, commands, instructions, registers, keywords } from "./v2/asm.js";
+import { Compiler } from "./v2/asm.js";
+import { commands, instructions, registers, keywords } from "./v2/reference.js";
 import { describeDevices, devicePort, devicePortDoc, instructionDocs } from "./v2/docs.js";
 import { stripBom } from "./text.js";
 
