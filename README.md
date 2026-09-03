@@ -3,47 +3,36 @@
 &nbsp;&nbsp;&nbsp;
 🌐 English | [Русский](ru/README.md)
 
-This online compiler builds programs for computers created in
-[“Logic Arrows”](https://logic-arrows.io/) — a browser game where complex logic circuits are
-assembled from simple arrows on a grid. Its left pane accepts assembly code, and the right pane
-converts it into a save code that can be pasted onto the computer’s map and run. There are two
-computers, each with its own assembler, compiler, and save code.
-
-<table>
-  <tr>
-    <td valign="top" width="50%">
-      <h3>Computer v2</h3>
-      <a href="https://chubrik.github.io/arrows-compiler/">
-        <b>Open compiler</b>
-      </a>
-      <br><br>
-      For information about the computer and its assembler, as well as example programs, see the
-      <a href="https://github.com/chubrik/LogicArrows/blob/main/computer-v2/README.md">
-        documentation</a>.
-      <br><br>
-      <a href="https://github.com/chubrik/LogicArrows/blob/main/computer-v2/README.md">
-        <img src="https://raw.githubusercontent.com/chubrik/LogicArrows/refs/heads/main/computer-v2/img/summary.jpg"
-          alt="Computer v2">
-      </a>
-    </td>
-    <td valign="top">
-      <h3>Computer v1</h3>
-      <a href="https://gulgdev.github.io/chubrik-compiler/">
-        <b>Open compiler</b>
-      </a>
-      <br><br>
-      For information about the computer and its assembler, as well as example programs, see the
-      <a href="https://github.com/chubrik/LogicArrows/blob/main/computer-v1/README.md">
-        documentation</a>.
-      <br><br>
-      <a href="https://github.com/chubrik/LogicArrows/blob/main/computer-v1/README.md">
-        <img src="https://raw.githubusercontent.com/chubrik/LogicArrows/refs/heads/main/computer-v1/img/summary.jpg"
-          alt="Computer v1">
-      </a>
-    </td>
-  </tr>
-</table>
+This online compiler builds programs for
+[two computers](https://github.com/chubrik/LogicArrows) created in “Logic Arrows” — a browser game
+where complex logic circuits are assembled from simple arrows on a grid. Its left pane accepts
+assembly code, and the right pane converts it into a save code that can be pasted onto the
+computer’s map and run.
 <br><br>
 
-The author thanks the developer [GulgDev](https://github.com/GulgDev/chubrik-compiler) for
-creating the compiler for the first version, which also became the foundation for the second one.
+
+## [Open compiler ⇾](https://chubrik.github.io/arrows-compiler/)
+
+<a href="https://chubrik.github.io/arrows-compiler/"><img src="img/compiler.png"
+  width="600" height="400" alt="Arrows Compiler"></a>
+<br><br>
+
+
+## <a name="links"></a>Links
+
+- [Logic Arrows maps](https://github.com/chubrik/LogicArrows) – a collection of maps: computers,
+  programs, and documentation
+- [Computer v2](https://github.com/chubrik/LogicArrows/blob/main/computer-v2/README.md) and
+  [Computer v1](https://github.com/chubrik/LogicArrows/blob/main/computer-v1/README.md) –
+  documentation, assembler, and example programs
+- [Logic Arrows in browser](https://logic-arrows.io/) – the game where the computers run
+- [Logic Arrows on Steam](https://store.steampowered.com/app/4210250/Logic_Arrows/) – new version
+  of the game, compatible with the browser one
+- [GraphDLC](https://github.com/MerinPrime/GraphDLC) – essential browser extension that speeds up
+  Logic Arrows by 5000 times
+- [Discord server](https://discord.gg/8FMuQuMFCN) and [Telegram channel](https://t.me/logic_arrows)
+  – where people discuss the computers and share ideas and new programs
+<br><br>
+
+The author thanks the developer [GulgDev](https://github.com/GulgDev) for creating the first
+version of the compiler.
