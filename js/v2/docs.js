@@ -96,7 +96,7 @@ export const instructionDocs = {
 
 // Port 3E, taken from LogicArrows/computer-v2/specification.md. A write connects the output
 // devices, replacing the whole set at once; a read returns the code of the last key pressed.
-// A db byte can land on the port itself: then the disk connects the devices as it loads
+// A db byte can land on the port itself: then the diskette connects the devices as it loads
 function describeDevices(value) {
     const devices = [];
     if (value & 0b010000)

@@ -1,4 +1,4 @@
-import { buildDisk } from "./builder.js";
+import { buildDiskette } from "./builder.js";
 import { createMonacoEditor } from "./editor.js";
 import { createPlainEditor } from "./plain-editor.js";
 import { cp1251chars, cp1251map, stripBom } from "./text.js";
@@ -27,7 +27,7 @@ function compile(asm, format, cpu) {
     compiler.compile();
 
     const lineOffsets = compiler.lineOffsets ?? []; // the v1 compiler tracks no banking
-    const byteCount = compiler.bytes.length; // buildDisk() pads and consumes the bytes
+    const byteCount = compiler.bytes.length; // buildDiskette() pads and consumes the bytes
 
     if (compiler.errors.length > 0) {
         let errorMessage = `Compilation failed (${compiler.errors.length} error${compiler.errors.length > 1 ? "s" : ""})\n\n`;
@@ -42,7 +42,7 @@ function compile(asm, format, cpu) {
     if (format === "hex")
         return { text: compiler.bytes.map(byte => "0x" + byte.toString(16).toUpperCase().padStart(2, "0")).join(", "), errors: [], lineOffsets, byteCount };
 
-    return { text: buildDisk(compiler.bytes, builderConfig), errors: [], lineOffsets, byteCount };
+    return { text: buildDiskette(compiler.bytes, builderConfig), errors: [], lineOffsets, byteCount };
 }
 
 document.addEventListener("DOMContentLoaded", async () => {

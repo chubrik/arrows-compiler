@@ -141,7 +141,7 @@ export const instructionDocs = {
 };
 
 // Ports 3E and 3F, taken from LogicArrows/computer-v1/specification.md. A db byte can land on
-// the output port itself: then the disk switches the output device as it loads
+// the output port itself: then the diskette switches the output device as it loads
 function describeSwitch(value) {
     switch (value) {
         case 0x80: return "switches the output to the display";

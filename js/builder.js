@@ -1,6 +1,6 @@
 import { GameMap } from "./arrows.js";
 
-export function buildDisk(bytes, config) {
+export function buildDiskette(bytes, config) {
     const { top, bottom, line, rowBytes, minBytes, dataX, topX, lineX, lineDy, bottomDy } = config;
     const gameMap = new GameMap();
 

@@ -633,7 +633,7 @@ function formatBinary(value) {
 }
 
 // A special port of the current CPU. A db byte can land on the port itself: then the byte
-// takes effect right as the disk loads, and the hover explains what it does
+// takes effect right as the diskette loads, and the hover explains what it does
 function describePort(model, address, isData = false) {
     const port = dialect.docs.portDocs[address];
     if (!port)
