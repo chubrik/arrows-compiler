@@ -1,5 +1,5 @@
-import { cp1251map } from "../text.js";
-import { Args, commands, instructions, registers, keywords } from "./reference.js";
+import { cp1251map } from "./text.js";
+import { Args, commands, instructions, registers, keywords } from "./v2/reference.js";
 
 const operators = ["+", "-"];
 
