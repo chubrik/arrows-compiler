@@ -4,7 +4,7 @@ import { createPlainEditor } from "./plain-editor.js";
 import { cp1251chars, cp1251map, stripBom } from "./text.js";
 import { Compiler as CompilerV1 } from "./v1/compiler.js";
 import { builderConfig as builderConfigV1 } from "./v1/builder-config.js";
-import { Compiler as CompilerV2 } from "./asm.js";
+import { Compiler as CompilerV2 } from "./v2/compiler.js";
 import { builderConfig as builderConfigV2 } from "./v2/builder-config.js";
 
 const cpuVersions = {

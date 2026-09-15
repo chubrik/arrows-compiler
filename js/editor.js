@@ -2,7 +2,7 @@ import { stripBom } from "./text.js";
 import { Compiler as CompilerV1 } from "./v1/compiler.js";
 import * as docsV1 from "./v1/docs.js";
 import * as referenceV1 from "./v1/reference.js";
-import { Compiler as CompilerV2 } from "./asm.js";
+import { Compiler as CompilerV2 } from "./v2/compiler.js";
 import * as docsV2 from "./v2/docs.js";
 import * as referenceV2 from "./v2/reference.js";
 
