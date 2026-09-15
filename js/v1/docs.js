@@ -165,4 +165,4 @@ export const portDocs = {
     }
 };
 
-export const dbDoc = "**db** — define bytes: numbers, expressions";
+export const dbDoc = "**db** — define bytes: numbers, chars, strings, expressions";

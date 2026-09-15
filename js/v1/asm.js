@@ -1,3 +1,4 @@
+import { cp1251map } from "../text.js";
 import { Args, commands, instructions, registers, keywords } from "./reference.js";
 
 const operators = ["+", "-"];
@@ -11,11 +12,13 @@ class Token {
     static EOF = 0x5;
     static KEYWORD = 0x6;
     static OPERATOR = 0x7;
+    static STRING = 0x8;
 
-    constructor(type, value, position) {
+    constructor(type, value, position, error = null) {
         this.type = type;
         this.value = value;
         this.position = position;
+        this.error = error;
     }
 
     toString() {
@@ -81,6 +84,8 @@ class Tokenizer {
             return this.readName();
         else if (digit.test(ch))
             return this.readNumber();
+        else if (ch === "\"")
+            return this.readString();
         else {
             const { position } = this;
             this.consume();
@@ -125,6 +130,47 @@ class Tokenizer {
         }
 
         return new Token(Token.NUMBER, number, position)
+    }
+
+    readString() {
+        const { position } = this;
+        this.consume();
+
+        let string = "";
+        let error = null;
+
+        let ch;
+        while ((ch = this.peekch()) !== "\"" && ch !== "\n" && ch != null) {
+            this.consume();
+
+            if (ch === "\\") {
+                ch = this.peekch();
+                if (ch === "\n" || ch == null)
+                    break;
+                this.consume();
+                switch (ch) {
+                    case "\\": string += ch; break;
+                    case "\"": string += ch; break;
+                    case "a": string += "\x07"; break;
+                    case "b": string += "\b"; break;
+                    case "t": string += "\t"; break;
+                    case "n": string += "\n"; break;
+                    case "v": string += "\v"; break;
+                    case "f": string += "\f"; break;
+                    case "r": string += "\r"; break;
+                    default:
+                        const sequencePosition = [this.position[0], this.position[1] - 2];
+                        error ??= new AsmError(sequencePosition, `unexpected escape sequence '\\${ch}'`);
+                }
+            } else
+                string += ch;
+        }
+        if (ch != null)
+            this.consume();
+        if (ch !== "\"")
+            error ??= new AsmError(position, `unterminated string "${escapeStr(string)}"`);
+
+        return new Token(Token.STRING, string, position, error);
     }
 }
 
@@ -219,6 +265,13 @@ export class Compiler {
         if (token.type === Token.REGISTER) {
             this.tokenizer.next();
             arg.type = Args.A + registers.indexOf(token.value);
+        } else if (token.type === Token.STRING && (token.error || token.value.length !== 1)) {
+            this.tokenizer.next();
+            arg.type = Args.BYTE;
+            if (token.error)
+                this.errors.push(token.error);
+            else
+                this.errors.push(new AsmError(token.position, `unexpected string "${escapeStr(token.value)}"`));
         } else if (this.parseExpression((value) => {
             arg.value = value;
             arg.resolveCallback?.(value);
@@ -245,6 +298,8 @@ export class Compiler {
             resolveCallback(this.parseNumber(token));
         else if (token.type === Token.CHAR && token.value === "$")
             resolveCallback(this.statementAddress);
+        else if (token.type === Token.STRING && token.value.length === 1)
+            resolveCallback(this.getCharCode(token));
         else {
             if (required)
                 this.errors.push(new AsmError(token.position, `unexpected ${token}`));
@@ -323,6 +378,18 @@ export class Compiler {
         }
     }
 
+    getCharCode(token, index = 0) {
+        let charCode = token.value.charCodeAt(index);
+        if (charCode < 128)
+            return charCode;
+        charCode = cp1251map[token.value[index]];
+        if (charCode == null) {
+            const position = [token.position[0], token.position[1] + index + 1];
+            this.errors.push(new AsmError(position, `unexpected character '${token.value[index]}'`));
+        }
+        return charCode || 0;
+    }
+
     compile() {
         const names = {};
 
@@ -374,9 +441,18 @@ export class Compiler {
                 if (token.type === Token.KEYWORD && token.value === "db") {
                     this.resolveReference(name, this.bytes.length);
                     do {
-                        const offset = this.bytes.length;
-                        this.bytes.push(0x00);
-                        this.parseExpression((value) => this.bytes[offset] = value & 0xFF, true);
+                        if ((token = this.tokenizer.lookahead()).type === Token.STRING) {
+                            this.tokenizer.next();
+                            if (token.error)
+                                this.errors.push(token.error);
+                            else
+                                for (let i = 0; i < token.value.length; ++i)
+                                    this.bytes.push(this.getCharCode(token, i));
+                        } else {
+                            const offset = this.bytes.length;
+                            this.bytes.push(0x00);
+                            this.parseExpression((value) => this.bytes[offset] = value & 0xFF, true);
+                        }
                     } while ((token = this.tokenizer.lookahead()).type === Token.CHAR && token.value === "," && this.tokenizer.next())
                 } else if (token.type === Token.KEYWORD && token.value === "equ")
                     this.parseExpression((value) => this.resolveReference(name, value), true);
@@ -411,4 +487,17 @@ const radixPatterns = {
 
 function parseIntStrict(string, radix) {
     return radixPatterns[radix].test(string) ? parseInt(string, radix) : null;
+}
+
+function escapeStr(string) {
+    return string
+        .replace(/\\/g, "\\\\")
+        .replace(/\"/g, "\\\"")
+        .replace(/\x07/g, "\\a")
+        .replace(/\x08/g, "\\b")
+        .replace(/\t/g, "\\t")
+        .replace(/\n/g, "\\n")
+        .replace(/\v/g, "\\v")
+        .replace(/\f/g, "\\f")
+        .replace(/\r/g, "\\r");
 }
