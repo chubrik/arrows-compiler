@@ -10,9 +10,17 @@ export const builderConfig = {
     line,
     rowBytes: 8,  // data bytes on one row of the diskette
     minBytes: 16, // the smallest payload a diskette can carry
+    rowPitch: 2,  // map rows taken by one data row
     dataX: 9,     // x of the first data arrow in a row
+    cellPitch: 1, // x step between the cells of one byte
+    cells: [      // the arrow for each two-bit value of a cell
+        { type: 1, rotation: 1, flipped: false },
+        { type: 7, rotation: 1, flipped: false },
+        { type: 7, rotation: 1, flipped: true },
+        { type: 8, rotation: 1, flipped: false }
+    ],
     topX: 4,      // x the top cap is pasted at
     lineX: 4,     // x the row separator is pasted at
-    lineDy: -1,   // separator y relative to its row
-    bottomDy: 1,  // bottom cap y = row count * 2 + bottomDy
+    lineDy: 1,    // separator y relative to its row: the one below it
+    bottomDy: 1,  // bottom cap y = row count * rowPitch + bottomDy
 };

@@ -1,13 +1,8 @@
+import { computers, defaultComputer } from "./computers.js";
 import { stripBom } from "./text.js";
-import { Compiler as CompilerV1 } from "./v1/compiler.js";
-import * as docsV1 from "./v1/docs.js";
-import * as referenceV1 from "./v1/reference.js";
-import { Compiler as CompilerV2 } from "./v2/compiler.js";
-import * as docsV2 from "./v2/docs.js";
-import * as referenceV2 from "./v2/reference.js";
 
 // Everything the editor knows about one assembly dialect, bundled; the page picks the
-// current pack through setCpu, matching the compiler that fills the output panel
+// current pack through setComputer, matching the compiler that fills the output panel
 function dialectPack(Compiler, { argTypeNames, commands, instructions, registers, keywords }, docs) {
     return {
         Compiler, argTypeNames, commands, instructions, registers, keywords, docs,
@@ -15,12 +10,10 @@ function dialectPack(Compiler, { argTypeNames, commands, instructions, registers
     };
 }
 
-const cpuDialects = {
-    v1: dialectPack(CompilerV1, referenceV1, docsV1),
-    v2: dialectPack(CompilerV2, referenceV2, docsV2)
-};
+const dialects = Object.fromEntries(Object.entries(computers).map(([key, computer]) =>
+    [key, dialectPack(computer.Compiler, computer.reference, computer.docs)]));
 
-let dialect = cpuDialects.v2;
+let dialect = dialects[defaultComputer];
 
 const monacoBase = "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/";
 const languageId = "arrows-asm";
@@ -56,9 +49,9 @@ function loadMonaco() {
     });
 }
 
-export async function createMonacoEditor(container, initialValue, theme, cpu) {
+export async function createMonacoEditor(container, initialValue, theme, computer) {
     const monaco = await loadMonaco();
-    dialect = cpuDialects[cpu] ?? cpuDialects.v2;
+    dialect = dialects[computer] ?? dialects[defaultComputer];
 
     // The providers belong to the language, not to the editor: registering them again after
     // a switch back from the simple editor would answer every request twice
@@ -117,8 +110,8 @@ export async function createMonacoEditor(container, initialValue, theme, cpu) {
         focus: () => editor.focus(),
         onChange: (handler) => editor.onDidChangeModelContent(handler),
         setTheme: (theme) => monaco.editor.setTheme(themeName(theme)),
-        setCpu: (cpu) => {
-            dialect = cpuDialects[cpu] ?? cpuDialects.v2;
+        setComputer: (computer) => {
+            dialect = dialects[computer] ?? dialects[defaultComputer];
             applyTokenizer(monaco);
         },
         setErrors: (errors) => setErrorMarkers(monaco, editor, errors),
@@ -426,7 +419,7 @@ function findBoundaryLine(model, statementLine) {
     return top - 1;
 }
 
-// The token lists differ between the dialects, so a CPU switch installs the tokenizer anew;
+// The token lists differ between the dialects, so a computer switch installs the tokenizer anew;
 // Monaco re-tokenizes every open model when the provider is replaced
 function applyTokenizer(monaco) {
     monaco.languages.setMonarchTokensProvider(languageId, {
@@ -632,7 +625,7 @@ function formatBinary(value) {
     return "0b" + value.toString(2).padStart(8, "0");
 }
 
-// A special port of the current CPU. A db byte can land on the port itself: then the byte
+// A special port of the current computer. A db byte can land on the port itself: then the byte
 // takes effect right as the diskette loads, and the hover explains what it does
 function describePort(model, address, isData = false) {
     const port = dialect.docs.portDocs[address];
@@ -748,7 +741,7 @@ function findOccurrences(monaco, model, name) {
 }
 
 // Completion, definition, hover and occurrences all ask for the same names, several times per
-// keystroke; the model version tells when the previous answer still holds — unless the CPU
+// keystroke; the model version tells when the previous answer still holds — unless the computer
 // changed under the same text, hence the dialect in the key. The callers only read from the map
 let namesCache = { versionId: -1, dialect: null, names: null };
 

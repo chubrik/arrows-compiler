@@ -1,17 +1,8 @@
 import { buildDiskette } from "./builder.js";
+import { computers, defaultComputer } from "./computers.js";
 import { createMonacoEditor } from "./editor.js";
 import { createPlainEditor } from "./plain-editor.js";
 import { cp1251chars, cp1251map, stripBom } from "./text.js";
-import { Compiler as CompilerV1 } from "./v1/compiler.js";
-import { builderConfig as builderConfigV1 } from "./v1/builder-config.js";
-import { Compiler as CompilerV2 } from "./v2/compiler.js";
-import { builderConfig as builderConfigV2 } from "./v2/builder-config.js";
-
-const cpuVersions = {
-    "v1": { Compiler: CompilerV1, builderConfig: builderConfigV1 },
-    "v2": { Compiler: CompilerV2, builderConfig: builderConfigV2 },
-};
-const defaultCpu = "v2";
 
 const modeKey = "editor-mode";
 const themeKey = "theme";
@@ -21,8 +12,8 @@ const themeKey = "theme";
 const lightQuery = matchMedia("(prefers-color-scheme: light)");
 applyTheme(storedTheme());
 
-function compile(asm, format, cpu) {
-    const { Compiler, builderConfig } = cpuVersions[cpu];
+function compile(asm, format, computer) {
+    const { Compiler, builderConfig } = computers[computer];
     const compiler = new Compiler(asm);
     compiler.compile();
 
@@ -48,7 +39,7 @@ function compile(asm, format, cpu) {
 document.addEventListener("DOMContentLoaded", async () => {
     const source = document.getElementById("source");
     const output = document.getElementById("output");
-    const cpuSelect = document.getElementById("cpu");
+    const computerSelect = document.getElementById("computer");
     const outputFormat = document.getElementById("output-format");
     const editorMode = document.getElementById("editor-mode");
     const themeSelect = document.getElementById("theme");
@@ -58,9 +49,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     const format = params.get("output");
     if (format && [...outputFormat.options].some(option => option.value === format))
         outputFormat.value = format;
-    const cpu = params.get("cpu");
-    if (cpu && cpu in cpuVersions)
-        cpuSelect.value = cpu;
+    const computer = params.get("computer") ?? params.get("cpu"); // "cpu" is the key of older links
+    computerSelect.value = computer in computers ? computer : defaultComputer;
 
     editorMode.value = storedMode();
     themeSelect.value = storedTheme();
@@ -70,7 +60,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const theme = document.documentElement.dataset.theme;
         if (mode === "monaco")
             try {
-                return await createMonacoEditor(source, value, theme, cpuSelect.value);
+                return await createMonacoEditor(source, value, theme, computerSelect.value);
             } catch {
                 // Offline, or the CDN is out of reach: the simple editor still compiles, and
                 // the fallback is not remembered — the choice stands for the next visit
@@ -87,7 +77,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     function compileNow() {
         pendingCompile = false;
-        showResult(compile(editor.getValue(), outputFormat.value, cpuSelect.value));
+        showResult(compile(editor.getValue(), outputFormat.value, computerSelect.value));
     }
 
     function showResult(result) {
@@ -104,8 +94,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     function updateHash() {
         const source = stripBom(editor.getValue());
         const params = new URLSearchParams();
-        if (cpuSelect.value !== defaultCpu)
-            params.set("cpu", cpuSelect.value);
+        if (computerSelect.value !== defaultComputer)
+            params.set("computer", computerSelect.value);
         if (outputFormat.value !== "arrows")
             params.set("output", outputFormat.value);
         if (source.trim())
@@ -138,8 +128,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     // A new target computer means a new dialect in the editor, new bytes and a new bank layout
-    cpuSelect.addEventListener("change", () => {
-        editor.setCpu(cpuSelect.value);
+    computerSelect.addEventListener("change", () => {
+        editor.setComputer(computerSelect.value);
         compileNow();
         updateHash();
         showBankBoundaries();
