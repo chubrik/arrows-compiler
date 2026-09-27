@@ -3,11 +3,10 @@
 &nbsp;&nbsp;&nbsp;
 🌐 English | [Русский](ru/README.md)
 
-This online compiler builds programs for
-[two computers](https://github.com/chubrik/LogicArrows) created in “Logic Arrows” — a browser game
-where complex logic circuits are assembled from simple arrows on a grid. Its left pane accepts
-assembly code, and the right pane converts it into a save code that can be pasted onto the
-computer’s map and run.
+This online compiler builds programs for various computers created in
+[“Logic Arrows”](https://logic-arrows.io/) — a browser game where complex logic circuits are
+assembled from simple arrows on a grid. Its left pane accepts assembly code, and the right pane
+converts it into a save code that can be pasted onto the computer’s map and run.
 <br><br>
 
 
@@ -25,6 +24,8 @@ computer’s map and run.
 - [Computer v2](https://github.com/chubrik/LogicArrows/blob/main/computer-v2/README.md) and
   [Computer v1](https://github.com/chubrik/LogicArrows/blob/main/computer-v1/README.md) –
   documentation, assembler, and example programs
+- [Mikhail Moseev](https://github.com/mihail-moseev/program_for_computer_in_logic-arrows) –
+  repository by the author of his own computer, compatible with v2
 - [Logic Arrows in browser](https://logic-arrows.io/) – the game where the computers run
 - [Logic Arrows on Steam](https://store.steampowered.com/app/4210250/Logic_Arrows/) – new version
   of the game, compatible with the browser one
