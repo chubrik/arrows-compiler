@@ -15,7 +15,8 @@ import { builderConfig as moseevDiskette } from "./v2-moseev/builder-config.js";
 
 export const computers = {
     "v1": { Compiler: v1Compiler, reference: v1Reference, docs: v1Docs, builderConfig: v1Diskette },
-    "v2": { Compiler: v2Compiler, reference: v2Reference, docs: v2Docs, builderConfig: v2Diskette },
+    // largerMemory: the same computer with a bigger memory, for a program that does not fit
+    "v2": { Compiler: v2Compiler, reference: v2Reference, docs: v2Docs, builderConfig: v2Diskette, largerMemory: "v2-32k" },
     "v2-32k": { Compiler: v2_32kCompiler, reference: v2Reference, docs: v2_32kDocs, builderConfig: v2_32kDiskette },
     "v2-moseev": { Compiler: moseevCompiler, reference: v2Reference, docs: moseevDocs, builderConfig: moseevDiskette }
 };

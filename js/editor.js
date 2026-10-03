@@ -89,7 +89,8 @@ export async function createMonacoEditor(container, initialValue, theme, compute
     // The compiler and the URL hash expect LF regardless of platform
     editor.getModel().setEOL(monaco.editor.EndOfLineSequence.LF);
 
-    normalizePastes(monaco, editor);
+    const pasteHandlers = [];
+    normalizePastes(monaco, editor, pasteHandlers);
     outdentAtCaret(monaco, editor);
 
     return {
@@ -109,6 +110,7 @@ export async function createMonacoEditor(container, initialValue, theme, compute
 
         focus: () => editor.focus(),
         onChange: (handler) => editor.onDidChangeModelContent(handler),
+        onPaste: (handler) => pasteHandlers.push(handler),
         setTheme: (theme) => monaco.editor.setTheme(themeName(theme)),
         setComputer: (computer) => {
             dialect = dialects[computer] ?? dialects[defaultComputer];
@@ -186,10 +188,18 @@ function outdentAtCaret(monaco, editor) {
 
 // The pasted code is cleaned up in place: the undo history and the caret survive, which
 // replacing the whole text would not allow
-function normalizePastes(monaco, editor) {
+function normalizePastes(monaco, editor, pasteHandlers) {
     editor.onDidPaste((event) => {
         const model = editor.getModel();
         const pasted = model.getValueInRange(event.range);
+
+        // Whether the paste landed in an empty editor: a whole program arriving at once is
+        // not the same to the page as a snippet dropped into one
+        const lastLine = model.getLineCount();
+        const outside = model.getValueInRange(new monaco.Range(1, 1, event.range.startLineNumber, event.range.startColumn))
+            + model.getValueInRange(new monaco.Range(event.range.endLineNumber, event.range.endColumn, lastLine, model.getLineMaxColumn(lastLine)));
+        for (const handler of pasteHandlers)
+            handler({ wasEmpty: outside.trim() === "" });
         if (pasted.includes("\uFEFF"))
             editor.executeEdits("strip-bom", [{ range: event.range, text: stripBom(pasted) }]);
 

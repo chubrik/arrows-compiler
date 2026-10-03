@@ -68,10 +68,13 @@ export function createPlainEditor(container, initialValue) {
     // The pasted code goes through the cleanup Monaco does: no BOM, no trailing whitespace,
     // exactly one newline at the end of the file. Replacing the whole text at once — the usual
     // way a program arrives here — cleans the document as thoroughly as the Monaco path does
+    const pasteHandlers = [];
     textarea.addEventListener("paste", (event) => {
         const pasted = event.clipboardData?.getData("text/plain");
         if (pasted == null)
             return;
+        for (const handler of pasteHandlers)
+            handler({ wasEmpty: textarea.value.trim() === "" });
         // A textarea turns CRLF into LF on its own, so judge the text as it will land: otherwise
         // "line\r\n\r\n\r\n" looks like it ends with a single newline and the extra lines survive
         const text = pasted.replace(/\r\n?/g, "\n");
@@ -107,6 +110,7 @@ export function createPlainEditor(container, initialValue) {
 
         focus: () => textarea.focus(),
         onChange: (handler) => textarea.addEventListener("input", handler),
+        onPaste: (handler) => pasteHandlers.push(handler),
         setTheme: () => { }, // the stylesheet paints this editor through its variables
         setComputer: () => { }, // no highlighting or hints — no dialect to switch
         setErrors: () => { }, // the output panel lists them, and a click there leads to the line

@@ -72,12 +72,32 @@ document.addEventListener("DOMContentLoaded", async () => {
     let editor = await createEditor(editorMode.value, initialSource);
     editor.onChange(update);
 
+    // A whole program pasted into the empty editor may not fit the memory of the computer
+    // selected; when the same computer comes with a larger one, the page switches to it silently
+    let pastedIntoEmpty = false;
+
+    function notePaste({ wasEmpty }) {
+        pastedIntoEmpty = wasEmpty;
+    }
+
+    editor.onPaste(notePaste);
+
     let lastResult;
     let pendingCompile = false;
 
     function compileNow() {
         pendingCompile = false;
-        showResult(compile(editor.getValue(), outputFormat.value, computerSelect.value));
+        let result = compile(editor.getValue(), outputFormat.value, computerSelect.value);
+        if (pastedIntoEmpty) {
+            pastedIntoEmpty = false;
+            const { largerMemory, Compiler } = computers[computerSelect.value];
+            if (largerMemory && result.byteCount > Compiler.memorySize) {
+                computerSelect.value = largerMemory;
+                editor.setComputer(largerMemory);
+                result = compile(editor.getValue(), outputFormat.value, largerMemory);
+            }
+        }
+        showResult(result);
     }
 
     function showResult(result) {
@@ -147,6 +167,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         editor.dispose();
         editor = await createEditor(mode, value);
         editor.onChange(update);
+        editor.onPaste(notePaste);
 
         // The text did not change, so there is nothing to compile again: only what lived
         // inside the old editor has to be put back — the error markers and the separators

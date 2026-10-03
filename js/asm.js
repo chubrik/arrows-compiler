@@ -486,6 +486,8 @@ export function createCompiler({
         }
     }
 
+    Compiler.memorySize = memorySize;
+
     return Compiler;
 }
 
