@@ -1,9 +1,12 @@
 import { GameMap } from "./arrows.js";
 
 export function buildDiskette(bytes, config) {
-    const { top, bottom, line, rowBytes, minBytes, rowPitch, dataX, cellPitch, cells,
+    const { top, bottom, line, header, rowBytes, minBytes, rowPitch, dataX, cellPitch, cells,
         topX, lineX, lineDy, bottomDy } = config;
     const gameMap = new GameMap();
+
+    if (header)
+        bytes.unshift(...header(bytes.length));
 
     let byteCount = bytes.length;
 
