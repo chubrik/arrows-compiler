@@ -130,11 +130,16 @@ export async function createMonacoEditor(container, initialValue, theme, input, 
         setBankBoundaries: (lineOffsets, byteCount) => updateBankBoundaries(editor, lineOffsets, byteCount),
 
         dispose: () => {
-            // The editor goes first: a model pulled from under a running editor trips the
-            // features still computing on it
+            // The editor leaves the page at once but is disposed a moment later: right after a
+            // change of the text (a paste, say) Monaco is still computing on it, and disposing
+            // the editor then makes it cancel that work with a rejection nobody catches. The editor
+            // goes before its model, which the features still running would otherwise miss
+            editor.getDomNode().remove();
             const model = editor.getModel();
-            editor.dispose();
-            model.dispose();
+            setTimeout(() => {
+                editor.dispose();
+                model.dispose();
+            }, 1000);
             // The zones and the collections belong to the editor that is going away
             bankZoneIds = [];
             overflowDecorations = null;
