@@ -50,7 +50,7 @@ async function convertMap(source, { strict }) {
     } catch (error) {
         if (!(error instanceof ArrowsMapError))
             throw error;
-        return { ...empty, text: `Conversion failed\n\n${error.message}\n`, errors: [{ message: error.message }] };
+        return { ...empty, text: `Conversion error\n\n${error.message}\n`, errors: [{ message: error.message }] };
     }
 
     const { text, unsupported } = writeBrowserMap(map.version, map.cells, strict);
@@ -60,8 +60,8 @@ async function convertMap(source, { strict }) {
                 ? `Unsupported arrow type ${type} at (${x}, ${y})`
                 : `Arrow type ${type} at (${x}, ${y}) carries data (${data}) the browser version cannot keep`
         }));
-        let errorMessage = `Conversion failed (${errors.length} arrow${errors.length > 1 ? "s" : ""} the browser version cannot keep; `
-            + "the soft output converts the map anyway, with question marks for the arrows it lacks and without the data)\n\n";
+        let errorMessage = `Conversion error (${errors.length} arrow${errors.length > 1 ? "s" : ""} could not be saved in the browser version; `
+            + "use \"soft\" output mode to convert the map as much as possible, replacing unsupported arrows with question marks).\n\n";
         for (const error of errors.slice(0, listedArrows))
             errorMessage += error.message + "\n";
         if (errors.length > listedArrows)

@@ -79,6 +79,11 @@ textarea {
     tab-size: 4;
 }
 
+/* The bare field of a map: no gutter, so the text keeps a little distance from the edge */
+.plain-editor.bare > textarea {
+    padding-left: 6px;
+}
+
 @media (min-width: 1024px) {
     #source {
         min-width: calc(101ch + 80px); /* 101ch of code plus the line-number gutter */
@@ -106,6 +111,10 @@ textarea {
     display: flex;
     align-items: center;
     gap: 6px;
+}
+
+.toolbar-group[hidden] {
+    display: none; /* the editor choice goes away while a map is in the field */
 }
 
 #input-format,

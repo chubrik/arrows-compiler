@@ -44,9 +44,22 @@ document.addEventListener("DOMContentLoaded", async () => {
     editorMode.value = storedMode();
     themeSelect.value = storedTheme();
 
+    // A map is one long line of base64 with nothing to highlight and nothing to number: it gets
+    // a bare field that wraps, whichever editor is chosen for code, and the choice hides meanwhile
+    const editorModeGroup = editorMode.closest(".toolbar-group");
+    const isMap = () => inputs[inputSelect.value].kind === "map";
+
+    function showEditorChoice() {
+        editorModeGroup.hidden = isMap();
+    }
+
+    showEditorChoice();
+
     // Whichever editor is running, the page talks to it through the same handful of methods
     async function createEditor(mode, value) {
         const theme = document.documentElement.dataset.theme;
+        if (isMap())
+            return createPlainEditor(source, value, { bare: true });
         if (mode === "monaco")
             try {
                 return await createMonacoEditor(source, value, theme, inputSelect.value, outputSelect.value);
@@ -55,10 +68,11 @@ document.addEventListener("DOMContentLoaded", async () => {
                 // the fallback is not remembered — the choice stands for the next visit
                 editorMode.value = "plain";
             }
-        return createPlainEditor(source, value, theme);
+        return createPlainEditor(source, value);
     }
 
     let editor = await createEditor(editorMode.value, initialSource);
+    let editorIsMap = isMap();
     editor.onChange(update);
 
     // A whole program pasted into the empty editor may not fit the memory of the output chosen;
@@ -102,10 +116,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         showResult(result);
     }
 
+    // A click on an error leads to its line; an error of a map conversion names none, so the
+    // output of a failed conversion is not clickable then
     function showResult(result) {
         lastResult = result;
         output.value = result.text;
-        output.classList.toggle("errors", result.errors.length > 0);
+        output.classList.toggle("errors", result.errors.some(error => error.position));
         editor.setErrors(result.errors);
     }
 
@@ -154,11 +170,28 @@ document.addEventListener("DOMContentLoaded", async () => {
         showBankBoundaries();
     });
 
+    // Replaces the editor, keeping the text and the caret; what lived inside the old one, the
+    // error markers and the separators, the caller puts back
+    async function replaceEditor() {
+        const value = editor.getValue();
+        const position = editor.getPosition();
+        editor.dispose();
+        editor = await createEditor(editorMode.value, value);
+        editorIsMap = isMap();
+        editor.onChange(update);
+        editor.onPaste(notePaste);
+        return position;
+    }
+
     // A new input means a new dialect and a new list of outputs; an output of the same name
-    // stays chosen, otherwise the first one does
+    // stays chosen, otherwise the first one does. Code and a map live in different editors
     inputSelect.addEventListener("change", async () => {
         fillOutputs(inputSelect.value, outputSelect.value);
-        editor.setConversion(inputSelect.value, outputSelect.value);
+        showEditorChoice();
+        if (isMap() !== editorIsMap)
+            await replaceEditor();
+        else
+            editor.setConversion(inputSelect.value, outputSelect.value);
         await compileNow();
         updateHash();
         showBankBoundaries();
@@ -167,16 +200,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Switching editors keeps the code and the caret; what it costs is redrawing what
     // lives inside the editor being replaced
     editorMode.addEventListener("change", async () => {
-        const mode = editorMode.value;
         try {
-            localStorage.setItem(modeKey, mode);
+            localStorage.setItem(modeKey, editorMode.value);
         } catch { } // a browser with the storage turned off simply forgets the choice
-        const value = editor.getValue();
-        const { line, column } = editor.getPosition();
-        editor.dispose();
-        editor = await createEditor(mode, value);
-        editor.onChange(update);
-        editor.onPaste(notePaste);
+        const { line, column } = await replaceEditor();
 
         // The text did not change, so there is nothing to compile again: only what lived
         // inside the old editor has to be put back — the error markers and the separators
