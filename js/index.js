@@ -1,6 +1,6 @@
-import { buildDiskette } from "./builder.js";
-import { computers, defaultComputer } from "./computers.js";
+import { convert } from "./convert.js";
 import { createMonacoEditor } from "./editor.js";
+import { computerFor, defaultInput, defaultOutput, inputs, resolveConversion } from "./formats.js";
 import { createPlainEditor } from "./plain-editor.js";
 import { cp1251chars, cp1251map, stripBom } from "./text.js";
 
@@ -12,45 +12,34 @@ const themeKey = "theme";
 const lightQuery = matchMedia("(prefers-color-scheme: light)");
 applyTheme(storedTheme());
 
-function compile(asm, format, computer) {
-    const { Compiler, builderConfig } = computers[computer];
-    const compiler = new Compiler(asm);
-    compiler.compile();
-
-    const lineOffsets = compiler.lineOffsets ?? []; // the v1 compiler tracks no banking
-    const byteCount = compiler.bytes.length; // buildDiskette() pads and consumes the bytes
-
-    if (compiler.errors.length > 0) {
-        let errorMessage = `Compilation failed (${compiler.errors.length} error${compiler.errors.length > 1 ? "s" : ""})\n\n`;
-        for (const error of compiler.errors)
-            errorMessage += `Error at line ${error.position[0] + 1}, column ${error.position[1] + 1}: ${error.message}\n\n`;
-        return { text: errorMessage, errors: compiler.errors, lineOffsets, byteCount };
-    }
-
-    if (byteCount === 0)
-        return { text: "", errors: [], lineOffsets, byteCount };
-
-    if (format === "hex")
-        return { text: compiler.bytes.map(byte => "0x" + byte.toString(16).toUpperCase().padStart(2, "0")).join(", "), errors: [], lineOffsets, byteCount };
-
-    return { text: buildDiskette(compiler.bytes, builderConfig), errors: [], lineOffsets, byteCount };
-}
-
 document.addEventListener("DOMContentLoaded", async () => {
     const source = document.getElementById("source");
     const output = document.getElementById("output");
-    const computerSelect = document.getElementById("computer");
-    const outputFormat = document.getElementById("output-format");
+    const inputSelect = document.getElementById("input-format");
+    const outputSelect = document.getElementById("output-format");
     const editorMode = document.getElementById("editor-mode");
     const themeSelect = document.getElementById("theme");
 
     const params = new URLSearchParams(location.hash.substring(1));
     const initialSource = stripBom(decodeFromUrl(params.get("code") || ""));
-    const format = params.get("output");
-    if (format && [...outputFormat.options].some(option => option.value === format))
-        outputFormat.value = format;
-    const computer = params.get("computer") ?? params.get("cpu"); // "cpu" is the key of older links
-    computerSelect.value = computer in computers ? computer : defaultComputer;
+
+    // The lists come from the registry, the outputs depend on the input. The markup carries the
+    // same lists for the default input, so the toolbar has its final width before the script
+    // runs: a select filled only here would start empty and push the toolbar around
+    inputSelect.replaceChildren();
+    for (const [key, { label }] of Object.entries(inputs))
+        inputSelect.add(new Option(label, key));
+
+    function fillOutputs(input, wanted) {
+        outputSelect.replaceChildren();
+        for (const [key, { label }] of Object.entries(inputs[input].outputs))
+            outputSelect.add(new Option(label, key));
+        outputSelect.value = wanted in inputs[input].outputs ? wanted : defaultOutput(input);
+    }
+
+    const conversion = resolveConversion(params);
+    inputSelect.value = conversion.input;
+    fillOutputs(conversion.input, conversion.output);
 
     editorMode.value = storedMode();
     themeSelect.value = storedTheme();
@@ -60,7 +49,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const theme = document.documentElement.dataset.theme;
         if (mode === "monaco")
             try {
-                return await createMonacoEditor(source, value, theme, computerSelect.value);
+                return await createMonacoEditor(source, value, theme, inputSelect.value, outputSelect.value);
             } catch {
                 // Offline, or the CDN is out of reach: the simple editor still compiles, and
                 // the fallback is not remembered — the choice stands for the next visit
@@ -72,8 +61,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     let editor = await createEditor(editorMode.value, initialSource);
     editor.onChange(update);
 
-    // A whole program pasted into the empty editor may not fit the memory of the computer
-    // selected; when the same computer comes with a larger one, the page switches to it silently
+    // A whole program pasted into the empty editor may not fit the memory of the output chosen;
+    // when the same computer comes with a larger one, the page switches to its diskette silently
     let pastedIntoEmpty = false;
 
     function notePaste({ wasEmpty }) {
@@ -87,14 +76,15 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     function compileNow() {
         pendingCompile = false;
-        let result = compile(editor.getValue(), outputFormat.value, computerSelect.value);
+        const input = inputSelect.value;
+        let result = convert(editor.getValue(), input, outputSelect.value);
         if (pastedIntoEmpty) {
             pastedIntoEmpty = false;
-            const { largerMemory, Compiler } = computers[computerSelect.value];
-            if (largerMemory && result.byteCount > Compiler.memorySize) {
-                computerSelect.value = largerMemory;
-                editor.setComputer(largerMemory);
-                result = compile(editor.getValue(), outputFormat.value, largerMemory);
+            const { largerMemory } = inputs[input].outputs[outputSelect.value];
+            if (largerMemory && result.byteCount > computerFor(input, outputSelect.value).Compiler.memorySize) {
+                outputSelect.value = largerMemory;
+                editor.setConversion(input, largerMemory);
+                result = convert(editor.getValue(), input, largerMemory);
             }
         }
         showResult(result);
@@ -114,10 +104,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     function updateHash() {
         const source = stripBom(editor.getValue());
         const params = new URLSearchParams();
-        if (computerSelect.value !== defaultComputer)
-            params.set("computer", computerSelect.value);
-        if (outputFormat.value !== "arrows")
-            params.set("output", outputFormat.value);
+        if (inputSelect.value !== defaultInput)
+            params.set("in", inputSelect.value);
+        if (outputSelect.value !== defaultOutput(inputSelect.value))
+            params.set("out", outputSelect.value);
         if (source.trim())
             params.set("code", encodeToUrl(source));
         const hash = params.toString();
@@ -142,14 +132,19 @@ document.addEventListener("DOMContentLoaded", async () => {
         }, 500);
     }
 
-    outputFormat.addEventListener("change", () => {
+    // A new output may mean a new computer: new bytes, new hints and a new bank layout
+    outputSelect.addEventListener("change", () => {
+        editor.setConversion(inputSelect.value, outputSelect.value);
         compileNow();
         updateHash();
+        showBankBoundaries();
     });
 
-    // A new target computer means a new dialect in the editor, new bytes and a new bank layout
-    computerSelect.addEventListener("change", () => {
-        editor.setComputer(computerSelect.value);
+    // A new input means a new dialect and a new list of outputs; an output of the same name
+    // stays chosen, otherwise the first one does
+    inputSelect.addEventListener("change", () => {
+        fillOutputs(inputSelect.value, outputSelect.value);
+        editor.setConversion(inputSelect.value, outputSelect.value);
         compileNow();
         updateHash();
         showBankBoundaries();

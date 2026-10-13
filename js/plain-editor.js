@@ -112,7 +112,7 @@ export function createPlainEditor(container, initialValue) {
         onChange: (handler) => textarea.addEventListener("input", handler),
         onPaste: (handler) => pasteHandlers.push(handler),
         setTheme: () => { }, // the stylesheet paints this editor through its variables
-        setComputer: () => { }, // no highlighting or hints — no dialect to switch
+        setConversion: () => { }, // no highlighting or hints — no dialect to switch
         setErrors: () => { }, // the output panel lists them, and a click there leads to the line
         setBankBoundaries: () => { },
         dispose: () => wrapper.remove()

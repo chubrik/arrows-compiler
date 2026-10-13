@@ -108,7 +108,7 @@ textarea {
     gap: 6px;
 }
 
-#computer,
+#input-format,
 #output-format,
 #editor-mode,
 #theme {
@@ -132,7 +132,7 @@ textarea {
 
 #output {
     background: var(--panel);
-    cursor: default;
+    cursor: text;
 }
 
 #output.errors {

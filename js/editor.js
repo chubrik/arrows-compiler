@@ -1,8 +1,8 @@
-import { computers, defaultComputer } from "./computers.js";
+import { dialectFor } from "./formats.js";
 import { stripBom } from "./text.js";
 
 // Everything the editor knows about one assembly dialect, bundled; the page picks the
-// current pack through setComputer, matching the compiler that fills the output panel
+// current pack through setConversion, matching the compiler that fills the output panel
 function dialectPack(Compiler, { argTypeNames, commands, instructions, registers, keywords }, docs) {
     return {
         Compiler, argTypeNames, commands, instructions, registers, keywords, docs,
@@ -10,10 +10,20 @@ function dialectPack(Compiler, { argTypeNames, commands, instructions, registers
     };
 }
 
-const dialects = Object.fromEntries(Object.entries(computers).map(([key, computer]) =>
-    [key, dialectPack(computer.Compiler, computer.reference, computer.docs)]));
+// The pack of an input/output pair is built once; the input names the dialect, the output names
+// the computer whose compiler and devices the hints describe
+const dialects = new Map();
 
-let dialect = dialects[defaultComputer];
+function dialectOf(input, output) {
+    const key = input + "/" + output;
+    if (!dialects.has(key)) {
+        const { Compiler, reference, docs } = dialectFor(input, output);
+        dialects.set(key, dialectPack(Compiler, reference, docs));
+    }
+    return dialects.get(key);
+}
+
+let dialect;
 
 const monacoBase = "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/";
 const languageId = "arrows-asm";
@@ -49,9 +59,9 @@ function loadMonaco() {
     });
 }
 
-export async function createMonacoEditor(container, initialValue, theme, computer) {
+export async function createMonacoEditor(container, initialValue, theme, input, output) {
     const monaco = await loadMonaco();
-    dialect = dialects[computer] ?? dialects[defaultComputer];
+    dialect = dialectOf(input, output);
 
     // The providers belong to the language, not to the editor: registering them again after
     // a switch back from the simple editor would answer every request twice
@@ -112,8 +122,8 @@ export async function createMonacoEditor(container, initialValue, theme, compute
         onChange: (handler) => editor.onDidChangeModelContent(handler),
         onPaste: (handler) => pasteHandlers.push(handler),
         setTheme: (theme) => monaco.editor.setTheme(themeName(theme)),
-        setComputer: (computer) => {
-            dialect = dialects[computer] ?? dialects[defaultComputer];
+        setConversion: (input, output) => {
+            dialect = dialectOf(input, output);
             applyTokenizer(monaco);
         },
         setErrors: (errors) => setErrorMarkers(monaco, editor, errors),
@@ -429,7 +439,7 @@ function findBoundaryLine(model, statementLine) {
     return top - 1;
 }
 
-// The token lists differ between the dialects, so a computer switch installs the tokenizer anew;
+// The token lists differ between the dialects, so a conversion switch installs the tokenizer anew;
 // Monaco re-tokenizes every open model when the provider is replaced
 function applyTokenizer(monaco) {
     monaco.languages.setMonarchTokensProvider(languageId, {
