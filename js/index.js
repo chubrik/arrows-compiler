@@ -1,3 +1,4 @@
+import { looksLikeMap } from "./arrows-map.js";
 import { convert } from "./convert.js";
 import { createMonacoEditor } from "./editor.js";
 import { computerFor, defaultInput, defaultOutput, inputs, resolveConversion } from "./formats.js";
@@ -75,8 +76,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     let editorIsMap = isMap();
     editor.onChange(update);
 
-    // A whole program pasted into the empty editor may not fit the memory of the output chosen;
-    // when the same computer comes with a larger one, the page switches to its diskette silently
+    // What is pasted into the empty editor tells the page something it acts on silently: a map
+    // pasted into a code input turns the page to the map input, and a whole program that does not
+    // fit the memory of the output chosen gets the diskette of the same computer with a larger one
     let pastedIntoEmpty = false;
 
     function notePaste({ wasEmpty }) {
@@ -95,10 +97,19 @@ document.addEventListener("DOMContentLoaded", async () => {
         pendingCompile = false;
         const serial = ++conversionSerial;
         const source = editor.getValue();
-        const input = inputSelect.value;
+        let input = inputSelect.value;
         let output = outputSelect.value;
         const pasted = pastedIntoEmpty;
         pastedIntoEmpty = false;
+        if (pasted && !isMap() && looksLikeMap(source)) {
+            inputSelect.value = input = "map";
+            fillOutputs(input, output);
+            output = outputSelect.value;
+            showEditorChoice();
+            await replaceEditor();
+            if (serial !== conversionSerial)
+                return;
+        }
         let result = await convert(source, input, output);
         if (serial !== conversionSerial)
             return;

@@ -69,6 +69,28 @@ export async function readArrowsMap(text) {
     return { version, cells: readBody(body, layout) };
 }
 
+// Whether a text is a map, by its opening alone: a save file with a data field, or base64 that
+// starts with a known format version. Cheap enough to ask on every paste; whether the rest of
+// the text holds up is for the conversion to tell
+export function looksLikeMap(text) {
+    let encoded = text.trim();
+    if (encoded.startsWith("{")) {
+        try {
+            encoded = JSON.parse(encoded).data;
+        } catch {
+            return false;
+        }
+        if (typeof encoded !== "string")
+            return false;
+    }
+    encoded = encoded.replace(/\s+/g, "");
+    if (encoded.length < 8 || !/^[A-Za-z0-9+/]+=*$/.test(encoded))
+        return false;
+    const head = Uint8Array.from(atob(encoded.slice(0, 4)), (char) => char.charCodeAt(0));
+    const version = head[0] | (head[1] << 8);
+    return version in layouts && head[2] <= 1;
+}
+
 function decodeBase64(text) {
     let binary;
     try {
