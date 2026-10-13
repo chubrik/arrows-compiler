@@ -73,18 +73,30 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     let lastResult;
     let pendingCompile = false;
+    let conversionSerial = 0;
 
-    function compileNow() {
+    // A conversion takes a moment (a map is decompressed first) and the text may change
+    // meanwhile: only the latest conversion started gets to show its result
+    async function compileNow() {
         pendingCompile = false;
+        const serial = ++conversionSerial;
+        const source = editor.getValue();
         const input = inputSelect.value;
-        let result = convert(editor.getValue(), input, outputSelect.value);
-        if (pastedIntoEmpty) {
-            pastedIntoEmpty = false;
-            const { largerMemory } = inputs[input].outputs[outputSelect.value];
-            if (largerMemory && result.byteCount > computerFor(input, outputSelect.value).Compiler.memorySize) {
-                outputSelect.value = largerMemory;
-                editor.setConversion(input, largerMemory);
-                result = convert(editor.getValue(), input, largerMemory);
+        let output = outputSelect.value;
+        const pasted = pastedIntoEmpty;
+        pastedIntoEmpty = false;
+        let result = await convert(source, input, output);
+        if (serial !== conversionSerial)
+            return;
+        if (pasted) {
+            const { largerMemory } = inputs[input].outputs[output];
+            if (largerMemory && result.byteCount > computerFor(input, output).Compiler.memorySize) {
+                output = largerMemory;
+                outputSelect.value = output;
+                editor.setConversion(input, output);
+                result = await convert(source, input, output);
+                if (serial !== conversionSerial)
+                    return;
             }
         }
         showResult(result);
@@ -111,7 +123,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (source.trim())
             params.set("code", encodeToUrl(source));
         const hash = params.toString();
-        history.replaceState(null, "", hash ? `${location.pathname}#${hash}` : location.pathname);
+        try {
+            history.replaceState(null, "", hash ? `${location.pathname}#${hash}` : location.pathname);
+        } catch { } // a map file can outgrow what the browser lets a link hold: the code then stays out of the link
     }
 
     let compileTimer;
@@ -122,10 +136,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         clearTimeout(compileTimer);
         compileTimer = setTimeout(compileNow, 10);
         clearTimeout(idleTimer);
-        idleTimer = setTimeout(() => {
+        idleTimer = setTimeout(async () => {
             if (pendingCompile) {
                 clearTimeout(compileTimer);
-                compileNow();
+                await compileNow();
             }
             updateHash();
             showBankBoundaries();
@@ -133,19 +147,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // A new output may mean a new computer: new bytes, new hints and a new bank layout
-    outputSelect.addEventListener("change", () => {
+    outputSelect.addEventListener("change", async () => {
         editor.setConversion(inputSelect.value, outputSelect.value);
-        compileNow();
+        await compileNow();
         updateHash();
         showBankBoundaries();
     });
 
     // A new input means a new dialect and a new list of outputs; an output of the same name
     // stays chosen, otherwise the first one does
-    inputSelect.addEventListener("change", () => {
+    inputSelect.addEventListener("change", async () => {
         fillOutputs(inputSelect.value, outputSelect.value);
         editor.setConversion(inputSelect.value, outputSelect.value);
-        compileNow();
+        await compileNow();
         updateHash();
         showBankBoundaries();
     });
@@ -167,7 +181,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         // The text did not change, so there is nothing to compile again: only what lived
         // inside the old editor has to be put back — the error markers and the separators
         if (pendingCompile)
-            compileNow();
+            await compileNow();
         else
             showResult(lastResult);
 
@@ -222,7 +236,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         copyResetTimer = setTimeout(() => copyButton.textContent = "Copy", 1500);
     });
 
-    compileNow();
+    await compileNow();
     showBankBoundaries();
     editor.focus();
 });
