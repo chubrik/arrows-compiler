@@ -58,8 +58,8 @@ export function computerFor(input, output) {
     return computers[inputs[input].outputs[output].computer];
 }
 
-// The input names the dialect, the computer of the output compiles it and names the devices;
-// a map is plain text to the editor, with no dialect at all
+// The input names the dialect, the computer of the output compiles it and names the devices.
+// A map has no dialect: the page gives it a bare field instead of the code editor
 export function dialectFor(input, output) {
     const { kind, reference, docs } = inputs[input];
     if (kind !== "asm")

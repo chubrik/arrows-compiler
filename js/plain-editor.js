@@ -9,50 +9,24 @@ const undoableSize = 2048;
 
 // A plain textarea for the machines Monaco is too heavy for: no highlighting, no completion,
 // no hints and no bank separators — the code, the compiler and the errors in the output panel.
-// Everything the page asks of an editor it asks through the same interface as of Monaco
-export function createPlainEditor(container, initialValue) {
+// Everything the page asks of an editor it asks through the same interface as of Monaco.
+// A bare one is the field for a map: no line numbers, and its one long line wraps
+export function createPlainEditor(container, initialValue, { bare = false } = {}) {
     const textarea = document.createElement("textarea");
     textarea.value = initialValue;
     textarea.setSelectionRange(0, 0); // assigning the value leaves the caret at the end of the text
-    textarea.wrap = "off"; // an assembly line is never wrapped, the ruler stands at column 100
+    textarea.wrap = bare ? "soft" : "off"; // an assembly line is never wrapped, the ruler stands at column 100
     textarea.spellcheck = false;
     textarea.autocapitalize = "off";
     textarea.autocomplete = "off";
     textarea.setAttribute("autocorrect", "off");
 
-    // The gutter scrolls with the text but has no scrollbar of its own
-    const gutter = document.createElement("div");
-    gutter.className = "plain-gutter";
-    const numbers = document.createElement("div");
-    gutter.appendChild(numbers);
-
     const wrapper = document.createElement("div");
-    wrapper.className = "plain-editor";
-    wrapper.append(gutter, textarea);
+    wrapper.className = bare ? "plain-editor bare" : "plain-editor";
+    if (!bare)
+        wrapper.appendChild(lineNumbers(textarea));
+    wrapper.appendChild(textarea);
     container.appendChild(wrapper);
-
-    // The numbers are one text node, rebuilt only when the line count changes: typing
-    // inside a line must not touch the DOM
-    let numbered = 0;
-
-    function updateNumbers() {
-        const count = countLines(textarea.value);
-        if (count === numbered)
-            return;
-        numbered = count;
-        let text = "1";
-        for (let i = 2; i <= count; ++i)
-            text += "\n" + i;
-        numbers.textContent = text;
-    }
-
-    updateNumbers();
-    textarea.addEventListener("input", updateNumbers);
-
-    // Only the vertical scrolling reaches the gutter: a long line moves the text alone
-    textarea.addEventListener("scroll", () => {
-        numbers.style.transform = "translateY(" + -textarea.scrollTop + "px)";
-    });
 
     // Without this the key walks the focus away from the editor
     textarea.addEventListener("keydown", (event) => {
@@ -117,6 +91,38 @@ export function createPlainEditor(container, initialValue) {
         setBankBoundaries: () => { },
         dispose: () => wrapper.remove()
     };
+}
+
+// The gutter of line numbers: it scrolls with the text but has no scrollbar of its own
+function lineNumbers(textarea) {
+    const gutter = document.createElement("div");
+    gutter.className = "plain-gutter";
+    const numbers = document.createElement("div");
+    gutter.appendChild(numbers);
+
+    // The numbers are one text node, rebuilt only when the line count changes: typing
+    // inside a line must not touch the DOM
+    let numbered = 0;
+
+    function updateNumbers() {
+        const count = countLines(textarea.value);
+        if (count === numbered)
+            return;
+        numbered = count;
+        let text = "1";
+        for (let i = 2; i <= count; ++i)
+            text += "\n" + i;
+        numbers.textContent = text;
+    }
+
+    updateNumbers();
+    textarea.addEventListener("input", updateNumbers);
+
+    // Only the vertical scrolling reaches the gutter: a long line moves the text alone
+    textarea.addEventListener("scroll", () => {
+        numbers.style.transform = "translateY(" + -textarea.scrollTop + "px)";
+    });
+    return gutter;
 }
 
 // execCommand is deprecated, but it is the only edit the browser puts on the native undo stack;
