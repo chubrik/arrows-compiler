@@ -17,8 +17,8 @@ const dialects = new Map();
 function dialectOf(input, output) {
     const key = input + "/" + output;
     if (!dialects.has(key)) {
-        const { Compiler, reference, docs } = dialectFor(input, output);
-        dialects.set(key, dialectPack(Compiler, reference, docs));
+        const pack = dialectFor(input, output);
+        dialects.set(key, pack && dialectPack(pack.Compiler, pack.reference, pack.docs));
     }
     return dialects.get(key);
 }
@@ -27,6 +27,7 @@ let dialect;
 
 const monacoBase = "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/";
 const languageId = "arrows-asm";
+const plainLanguageId = "plaintext"; // what Monaco calls text it does nothing with
 const tabSize = 4;
 
 let loading = null;
@@ -75,17 +76,17 @@ export async function createMonacoEditor(container, initialValue, theme, input, 
         registerRename(monaco);
         registerFolding(monaco);
         registered = true;
-    } else
+    } else if (dialect)
         applyTokenizer(monaco); // the previous editor may have spoken the other dialect
 
     const editor = monaco.editor.create(container, {
         value: initialValue,
-        language: languageId,
+        language: dialect ? languageId : plainLanguageId,
         theme: themeName(theme),
         fontFamily: "ui-monospace, Consolas, Menlo, monospace",
         fontSize: 14,
         minimap: { enabled: false },
-        rulers: [100],
+        rulers: dialect ? [lineWidth] : [],
         automaticLayout: true,
         scrollBeyondLastLine: false,
         tabSize,
@@ -124,14 +125,17 @@ export async function createMonacoEditor(container, initialValue, theme, input, 
         setTheme: (theme) => monaco.editor.setTheme(themeName(theme)),
         setConversion: (input, output) => {
             dialect = dialectOf(input, output);
-            applyTokenizer(monaco);
+            applyDialect(monaco, editor);
         },
         setErrors: (errors) => setErrorMarkers(monaco, editor, errors),
         setBankBoundaries: (lineOffsets, byteCount) => updateBankBoundaries(editor, lineOffsets, byteCount),
 
         dispose: () => {
-            editor.getModel().dispose();
+            // The editor goes first: a model pulled from under a running editor trips the
+            // features still computing on it, such as the link detector over a long map line
+            const model = editor.getModel();
             editor.dispose();
+            model.dispose();
             // The zones and the collections belong to the editor that is going away
             bankZoneIds = [];
             overflowDecorations = null;
@@ -146,9 +150,19 @@ function themeName(theme) {
     return theme === "light" ? "arrows-light" : "arrows-dark";
 }
 
+// An assembly dialect brings its tokens, its hints and the column ruler; a map is plain text,
+// and Monaco answers no requests about it
+function applyDialect(monaco, editor) {
+    monaco.editor.setModelLanguage(editor.getModel(), dialect ? languageId : plainLanguageId);
+    editor.updateOptions({ rulers: dialect ? [lineWidth] : [] });
+    if (dialect)
+        applyTokenizer(monaco);
+}
+
 function setErrorMarkers(monaco, editor, errors) {
     const model = editor.getModel();
-    const markers = errors.map(({ position: [line, column], message }) => {
+    // An error of a map conversion names no line: it is only listed in the output panel
+    const markers = errors.filter(error => error.position).map(({ position: [line, column], message }) => {
         const start = model.validatePosition({ lineNumber: line + 1, column: column + 1 });
         const word = model.getWordAtPosition(start);
         return {
@@ -347,7 +361,8 @@ function updateBankBoundaries(editor, lineOffsets, byteCount) {
 function markLongLines(editor, model) {
     const monaco = window.monaco;
     const decorations = [];
-    for (let line = 1; line <= model.getLineCount(); ++line) {
+    // The width is a rule for code; a map is one long line by nature
+    for (let line = 1; dialect && line <= model.getLineCount(); ++line) {
         const length = model.getLineLength(line);
         const over = length - lineWidth;
         if (over > 0)
@@ -481,7 +496,9 @@ function registerLanguage(monaco) {
         surroundingPairs: [{ open: "\"", close: "\"" }]
     });
 
-    applyTokenizer(monaco);
+    // The first editor may open on a map; the tokens come along with the first dialect
+    if (dialect)
+        applyTokenizer(monaco);
 
     monaco.editor.defineTheme("arrows-dark", {
         base: "vs-dark",

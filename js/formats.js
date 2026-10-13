@@ -4,13 +4,16 @@ import * as v1Docs from "./v1/docs.js";
 import * as v2Reference from "./v2/reference.js";
 import * as v2Docs from "./v2/docs.js";
 
-// What the left pane may hold, and what the right pane may show for it. An input is a language
-// (its reference tables and instruction docs make the dialect); each of its outputs names the
-// computer that does the work: the compiler with its memory model, the port docs of its devices
-// and the diskette format of its memory. A converter for a map format will be one more input
+// What the left pane may hold, and what the right pane may show for it. An assembly input is
+// a language (its reference tables and instruction docs make the dialect); each of its outputs
+// names the computer that does the work: the compiler with its memory model, the port docs of
+// its devices and the diskette format of its memory. The map input takes a map saved in the
+// Steam version, and its outputs differ in whether what the browser version cannot
+// keep stops the conversion
 export const inputs = {
     "asm-v1": {
         label: "Assembly · Chubrik v1",
+        kind: "asm",
         reference: v1Reference,
         docs: v1Docs,
         outputs: {
@@ -20,6 +23,7 @@ export const inputs = {
     },
     "asm-v2": {
         label: "Assembly · Chubrik v2",
+        kind: "asm",
         reference: v2Reference,
         docs: v2Docs,
         outputs: {
@@ -31,6 +35,14 @@ export const inputs = {
             // The bytes belong to the architecture and are the same for every computer the program
             // fits in; the widest memory keeps the limit out of the way
             "hex": { label: "HEX", computer: "v2-32k", render: "hex" }
+        }
+    },
+    "map": {
+        label: "Steam Map",
+        kind: "map",
+        outputs: {
+            "map": { label: "Browser Map", strict: true },
+            "soft": { label: "Browser Map (soft)", strict: false }
         }
     }
 };
@@ -46,9 +58,12 @@ export function computerFor(input, output) {
     return computers[inputs[input].outputs[output].computer];
 }
 
-// The input names the dialect, the computer of the output compiles it and names the devices
+// The input names the dialect, the computer of the output compiles it and names the devices;
+// a map is plain text to the editor, with no dialect at all
 export function dialectFor(input, output) {
-    const { reference, docs } = inputs[input];
+    const { kind, reference, docs } = inputs[input];
+    if (kind !== "asm")
+        return null;
     const computer = computerFor(input, output);
     return {
         Compiler: computer.Compiler,
