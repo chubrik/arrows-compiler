@@ -2,7 +2,7 @@ import { GameMap } from "./arrows.js";
 
 export function buildDiskette(bytes, config) {
     const { top, bottom, line, header, rowBytes, minBytes, rowPitch, dataX, cellPitch, cells,
-        topX, lineX, lineDy, bottomDy } = config;
+        topX, lineX, lineDy, bottomDy, dataY = 3, bottomUp = false } = config;
     const gameMap = new GameMap();
 
     if (header)
@@ -19,7 +19,7 @@ export function buildDiskette(bytes, config) {
     const rowCount = byteCount / rowBytes;
 
     for (let row = 0; row < rowCount - 1; ++row)
-        gameMap.paste(line, lineX, row * rowPitch + 3 + lineDy);
+        gameMap.paste(line, lineX, row * rowPitch + dataY + lineDy);
     gameMap.paste(top, topX, 0);
     gameMap.paste(bottom, 0, rowCount * rowPitch + bottomDy);
 
@@ -29,7 +29,7 @@ export function buildDiskette(bytes, config) {
 
     for (let row = 0; row < rowCount; ++row) {
         let bytes_row = bytes.splice(0, rowBytes);
-        let y = row * rowPitch + 3;
+        let y = (bottomUp ? rowCount - 1 - row : row) * rowPitch + dataY;
 
         for (let i = 0; i < rowBytes; ++i) {
             let byte = bytes_row.at(i);
