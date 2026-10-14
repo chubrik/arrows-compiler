@@ -6,7 +6,8 @@
 This online compiler builds programs for various computers created in
 [“Logic Arrows”](https://logic-arrows.io/) — a browser game where complex logic circuits are
 assembled from simple arrows on a grid. Its left pane accepts assembly code, and the right pane
-converts it into a save code that can be pasted onto the computer’s map and run.
+converts it into a save code that can be pasted onto the computer’s map and run. There is also
+a converter of maps from the Steam version to the browser one.
 <br><br>
 
 
