@@ -1,5 +1,5 @@
-import { createCompiler } from "../asm.js";
-import { Args, commands, instructions, registers, keywords } from "./reference.js";
+import { Args, commands, instructions, keywords, registers } from "../../asm-v2/reference.js";
+import { createCompiler } from "../../asm.js";
 
 export const Compiler = createCompiler({
     Args, commands, instructions, registers, keywords,

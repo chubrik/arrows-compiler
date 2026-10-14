@@ -1,6 +1,6 @@
-import { buildDiskette } from "./builder.js";
-import { computerFor, inputs } from "./formats.js";
 import { ArrowsMapError, describeExtras, nameType, readArrowsMap, writeBrowserMap } from "./arrows-map.js";
+import { buildDiskette } from "./builder.js";
+import { inputs, targetFor } from "./formats.js";
 
 // Turns what the left pane holds into what the right pane shows. A map has to be decompressed
 // first, which the browser only does asynchronously, so every conversion is a promise
@@ -11,7 +11,7 @@ export async function convert(source, input, output) {
 
 function compile(source, input, output) {
     const { render } = inputs[input].outputs[output];
-    const { Compiler, builderConfig } = computerFor(input, output);
+    const { Compiler, builderConfig } = targetFor(input, output);
     const compiler = new Compiler(source);
     compiler.compile();
 

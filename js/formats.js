@@ -1,12 +1,12 @@
-import { computers } from "./computers.js";
-import * as v1Reference from "./v1/reference.js";
-import * as v1Docs from "./v1/docs.js";
-import * as v2Reference from "./v2/reference.js";
-import * as v2Docs from "./v2/docs.js";
+import * as v1Docs from "./asm-v1/docs.js";
+import * as v1Reference from "./asm-v1/reference.js";
+import * as v2Docs from "./asm-v2/docs.js";
+import * as v2Reference from "./asm-v2/reference.js";
+import { targets } from "./targets.js";
 
 // What the left pane may hold, and what the right pane may show for it. An assembly input is
 // a language (its reference tables and instruction docs make the dialect); each of its outputs
-// names the computer that does the work: the compiler with its memory model, the port docs of
+// names the target computer that does the work: the compiler with its memory model, the port docs of
 // its devices and the diskette format of its memory. The map input takes a map saved in the
 // Steam version, and its outputs differ in whether what the browser version cannot
 // keep stops the conversion
@@ -17,8 +17,8 @@ export const inputs = {
         reference: v1Reference,
         docs: v1Docs,
         outputs: {
-            "diskette": { label: "Diskette", computer: "v1", render: "diskette" },
-            "hex": { label: "HEX", computer: "v1", render: "hex" }
+            "diskette": { label: "Diskette", target: "v1-chubrik-256b", render: "diskette" },
+            "hex": { label: "HEX", target: "v1-chubrik-256b", render: "hex" }
         }
     },
     "asm-v2": {
@@ -29,12 +29,12 @@ export const inputs = {
         outputs: {
             // largerMemory: the diskette of the same computer with a bigger memory, for a program
             // that does not fit this one
-            "diskette": { label: "Diskette 1 KB", computer: "v2", render: "diskette", largerMemory: "32k" },
-            "32k": { label: "Diskette 32 KB", computer: "v2-32k", render: "diskette" },
-            "moseev": { label: "Diskette (Moseev)", computer: "v2-moseev", render: "diskette" },
+            "diskette": { label: "Diskette 1 KB", target: "v2-chubrik-1kb", render: "diskette", largerMemory: "32k" },
+            "32k": { label: "Diskette 32 KB", target: "v2-chubrik-32kb", render: "diskette" },
+            "moseev": { label: "Diskette (Moseev)", target: "v2-moseev-256b", render: "diskette" },
             // The bytes belong to the architecture and are the same for every computer the program
             // fits in; the widest memory keeps the limit out of the way
-            "hex": { label: "HEX", computer: "v2-32k", render: "hex" }
+            "hex": { label: "HEX", target: "v2-chubrik-32kb", render: "hex" }
         }
     },
     "map": {
@@ -54,8 +54,8 @@ export function defaultOutput(input) {
     return Object.keys(inputs[input].outputs)[0];
 }
 
-export function computerFor(input, output) {
-    return computers[inputs[input].outputs[output].computer];
+export function targetFor(input, output) {
+    return targets[inputs[input].outputs[output].target];
 }
 
 // The input names the dialect, the computer of the output compiles it and names the devices.
@@ -64,11 +64,11 @@ export function dialectFor(input, output) {
     const { kind, reference, docs } = inputs[input];
     if (kind !== "asm")
         return null;
-    const computer = computerFor(input, output);
+    const target = targetFor(input, output);
     return {
-        Compiler: computer.Compiler,
+        Compiler: target.Compiler,
         reference,
-        docs: { instructionDocs: docs.instructionDocs, dbDoc: docs.dbDoc, portDocs: computer.docs.portDocs }
+        docs: { instructionDocs: docs.instructionDocs, dbDoc: docs.dbDoc, portDocs: target.portDocs }
     };
 }
 
