@@ -1,5 +1,5 @@
-import { createCompiler } from "../asm.js";
-import { Args, commands, instructions, registers, keywords } from "../v2/reference.js";
+import { Args, commands, instructions, keywords, registers } from "../../asm-v2/reference.js";
+import { createCompiler } from "../../asm.js";
 
 // The Chubrik v2 architecture on the 32 KB memory: the same processor and banking, more banks
 export const Compiler = createCompiler({

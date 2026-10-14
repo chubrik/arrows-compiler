@@ -1,7 +1,7 @@
 import { looksLikeMap } from "./arrows-map.js";
 import { convert } from "./convert.js";
 import { createMonacoEditor } from "./editor.js";
-import { computerFor, defaultInput, defaultOutput, inputs, resolveConversion } from "./formats.js";
+import { defaultInput, defaultOutput, inputs, resolveConversion, targetFor } from "./formats.js";
 import { createPlainEditor } from "./plain-editor.js";
 import { cp1251chars, cp1251map, stripBom } from "./text.js";
 
@@ -115,7 +115,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             return;
         if (pasted) {
             const { largerMemory } = inputs[input].outputs[output];
-            if (largerMemory && result.byteCount > computerFor(input, output).Compiler.memorySize) {
+            if (largerMemory && result.byteCount > targetFor(input, output).Compiler.memorySize) {
                 output = largerMemory;
                 outputSelect.value = output;
                 editor.setConversion(input, output);
