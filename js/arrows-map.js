@@ -11,20 +11,21 @@ import { GameMap } from "./arrows.js";
 //     per cell:  u8 position (x | y << 4), u8 flags
 //
 // Version 0 is the browser version: the body follows the version as it is, and the flags are
-// rotation | flipped << 2. The Steam version is a native program with no code to look at; its
-// formats are read back from the saves themselves. A byte follows the version saying whether the
-// body is a zlib stream (1) or raw (0, seen on a tiny map); in the body a cell may carry two bytes
-// of data behind its flags (the key of a button, the note of a sound arrow) and a script arrow (type 33)
-// the script text after them, as many bytes as the data says. Version 4 (the first Steam builds)
-// keeps the flags as data | rotation << 1 | flipped << 3, version 5 as rotation | flipped << 2
-// | data << 3; the top four bits hold the signal state. The browser keeps none of that
+// rotation | flipped << 2, the bits above them meaning nothing to the game. The Steam version is
+// a native program with no code to look at; its formats are read back from the saves themselves.
+// A byte follows the version saying whether the body is a zlib stream (1) or raw (0, on a small
+// map); in the body a cell may carry two bytes of data behind its flags. Version 4 (the first Steam
+// builds) keeps the flags as data | rotation << 1 | flipped << 3, version 5 as rotation |
+// flipped << 2 | data << 3; the top four bits are a state of the arrow: the colour of a wall with
+// no letter, or for a command block a 1 saying its script follows the data, as many bytes as the
+// data says. The browser keeps none of that: the bits it has no place for come out as `extra`
 const layouts = {
-    4: (flags) => ({ hasData: (flags & 1) !== 0, rotation: (flags >> 1) & 3, flipped: (flags & 8) !== 0 }),
-    5: (flags) => ({ hasData: (flags & 8) !== 0, rotation: flags & 3, flipped: (flags & 4) !== 0 })
+    4: (flags) => ({ hasData: (flags & 1) !== 0, rotation: (flags >> 1) & 3, flipped: (flags & 8) !== 0, extra: flags >> 4 }),
+    5: (flags) => ({ hasData: (flags & 8) !== 0, rotation: flags & 3, flipped: (flags & 4) !== 0, extra: flags >> 4 })
 };
 
 const browserVersion = 0;
-const scriptType = 33;
+const commandBlockType = 33;
 
 // The browser version knows the arrows up to the wall and draws every other type as a question
 // mark; type 26 is that question mark itself. Its button (21) is a different arrow from the
@@ -32,6 +33,61 @@ const scriptType = 33;
 export const lastBrowserType = 25;
 export const placeholderType = 26;
 const buttonType = 21;
+
+// What the Steam version writes on a wall: a wall with no letter keeps its colour in the top
+// bits of the flags; a lettered one keeps the letter in the data as a number shifted up by four
+// bits, A to Z being 1 to 26 and the digits 0 to 9 following, and the colour under it. Colours
+// are numbered as the menu lists them
+const wallType = 25;
+const wallColours = ["white", "red", "blue", "yellow", "green", "orange", "purple", "black"];
+const wallLetters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+// The arrows as the game names them in English, the browser version up to the wall and the
+// Steam version beyond it. Three of those never show in the menu: the question mark, the
+// projectile of a transmitter and the flash of two projectiles meeting. 40 and 41 are not in
+// the game yet and go by the name of their group, motion, until they are; from 44 on the game
+// draws question marks
+const arrowNames = [, "arrow", "source block", "blocker", "delay arrow", "signal detector", "splitter",
+    "splitter", "splitter", "pulse generator", "blue arrow", "diagonal arrow", "blue splitter", "blue splitter",
+    "blue splitter", "not gate", "and gate", "XOR gate", "latch", "T flip-flop", "randomizer", "button",
+    "source", "target", "directional button", "wall", "question mark", "light bulb", "light bulb", "music arrow",
+    "transmitter", "projectile", "update detector", "command block", "message", "flash", "piston", "swap",
+    "rotator", "mirror", "motion", "motion", "logger", "interval"];
+
+// The button of the browser version and the key of the Steam version share a number
+const steamNames = { 21: "key" };
+
+// "type 25 (wall)", or the number alone for an arrow with no name here
+export function nameType(type, version) {
+    const name = (version !== browserVersion && steamNames[type]) || arrowNames[type];
+    return name ? `type ${type} (${name})` : `type ${type}`;
+}
+
+// Words for what an arrow carries beyond its turn: a wall names its colour and its letter,
+// anything else shows the raw numbers
+export function describeExtras({ type, data, extra }) {
+    const parts = [];
+    if (type === wallType) {
+        const colour = data !== null ? data & 15 : extra;
+        const letter = data !== null ? wallLetters[(data >> 4) - 1] : undefined;
+        if (colour !== 0)
+            parts.push(wallColours[colour] ? `is ${wallColours[colour]}` : `has colour ${colour}`);
+        if (letter)
+            parts.push(`has the ${letter < "A" ? "digit" : "letter"} ${letter}`);
+        else if (data !== null && data >> 4 !== 0)
+            parts.push(`carries data (${data})`);
+        if (data !== null && extra !== 0)
+            parts.push(`carries extra bits (${extra})`);
+        if (parts.length === 0)
+            parts.push(`carries data (${data})`); // a letter of number 0: nothing, but written
+    } else {
+        if (data !== null)
+            parts.push(`carries data (${data})`);
+        if (extra !== 0)
+            parts.push(`carries extra bits (${extra})`);
+    }
+    return parts.join(" and ");
+}
 
 // What is wrong with the text, in words for the output panel
 export class ArrowsMapError extends Error { }
@@ -66,7 +122,7 @@ export async function readArrowsMap(text) {
         body = bytes.subarray(3);
     else
         throw new ArrowsMapError(`Unknown map encoding ${bytes[2]}: compressed (1) and raw (0) are known`);
-    return { version, cells: readBody(body, layout) };
+    return { version, ...readBody(body, layout) };
 }
 
 // Whether a text is a map, by its opening alone: a save file with a data field, or base64 that
@@ -129,30 +185,36 @@ function readBody(body, layout) {
     };
 
     const cells = [];
+    const chunksSeen = new Set();
+    const repeatedChunks = [];
     const chunkCount = word();
     for (let i = 0; i < chunkCount; ++i) {
         const chunkX = coordinate();
         const chunkY = coordinate();
+        const chunkKey = chunkX + "," + chunkY;
+        if (chunksSeen.has(chunkKey))
+            repeatedChunks.push([chunkX, chunkY]);
+        chunksSeen.add(chunkKey);
         const typeCount = byte() + 1;
         for (let j = 0; j < typeCount; ++j) {
             const type = byte();
             const cellCount = byte() + 1;
             for (let k = 0; k < cellCount; ++k) {
                 const position = byte();
-                const { hasData, rotation, flipped } = layout(byte());
+                const { hasData, rotation, flipped, extra } = layout(byte());
                 let data = null;
                 if (hasData) {
                     data = word();
-                    if (type === scriptType)
-                        skip(data); // the script text, which the browser has no use for
+                    if (type === commandBlockType && (extra & 1))
+                        skip(data); // the script, which the browser has no use for
                 }
-                cells.push({ x: chunkX * 16 + (position & 0xF), y: chunkY * 16 + (position >> 4), type, rotation, flipped, data });
+                cells.push({ x: chunkX * 16 + (position & 0xF), y: chunkY * 16 + (position >> 4), type, rotation, flipped, data, extra });
             }
         }
     }
-    if (index !== body.length)
-        throw new ArrowsMapError("The map data goes on beyond its last chunk");
-    return cells;
+    // The game reads as many chunks as the header says and ignores what follows; so does this,
+    // only counting the bytes left over for the strict output to report
+    return { cells, repeatedChunks, trailing: body.length - index };
 }
 
 // The cells in the browser format, placed the way the game places a copy: the smallest x and y
@@ -163,16 +225,28 @@ function readBody(body, layout) {
 // an arrow, the arrow without its data otherwise. An empty cell is nothing, whatever is written on it.
 export function writeBrowserMap(version, cells, strict) {
     const unsupported = [];
+    // A cell written twice: the loader of the game keeps the last record, an empty one included,
+    // and so does the soft output
+    const records = new Map();
+    for (const cell of cells) {
+        const key = cell.x + "," + cell.y;
+        if (records.has(key)) {
+            unsupported.push({ ...cell, reason: "duplicate" });
+            if (strict)
+                continue;
+        }
+        records.set(key, cell);
+    }
     let minX = Infinity;
     let minY = Infinity;
-    for (const cell of cells)
+    for (const cell of records.values())
         if (cell.type !== 0) {
             minX = Math.min(minX, cell.x);
             minY = Math.min(minY, cell.y);
         }
     const map = new GameMap();
     let placed = 0;
-    for (const cell of cells) {
+    for (const cell of records.values()) {
         let { type, rotation, flipped } = cell;
         if (type === 0)
             continue;
@@ -182,7 +256,7 @@ export function writeBrowserMap(version, cells, strict) {
                 continue;
             [type, rotation, flipped] = [placeholderType, 0, false];
         } else {
-            if (cell.data !== null) {
+            if (cell.data !== null || cell.extra !== 0) {
                 unsupported.push({ ...cell, reason: "data" });
                 if (strict)
                     continue;

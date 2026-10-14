@@ -1,6 +1,6 @@
 import { buildDiskette } from "./builder.js";
 import { computerFor, inputs } from "./formats.js";
-import { ArrowsMapError, readArrowsMap, writeBrowserMap } from "./arrows-map.js";
+import { ArrowsMapError, describeExtras, nameType, readArrowsMap, writeBrowserMap } from "./arrows-map.js";
 
 // Turns what the left pane holds into what the right pane shows. A map has to be decompressed
 // first, which the browser only does asynchronously, so every conversion is a promise
@@ -34,8 +34,17 @@ function compile(source, input, output) {
     return { text: buildDiskette(compiler.bytes, builderConfig), errors: [], lineOffsets, byteCount };
 }
 
-// The output panel names this many unsupported arrows one by one and counts the rest
-const listedArrows = 50;
+// The output panel names this many problems one by one and counts the rest
+const listedProblems = 50;
+
+// The line of the error list for one thing the browser version cannot keep
+function describeLoss(cell, version) {
+    switch (cell.reason) {
+        case "type": return `Unsupported arrow ${nameType(cell.type, version)} at (${cell.x}, ${cell.y})`;
+        case "duplicate": return `Cell (${cell.x}, ${cell.y}) is written twice`;
+        default: return `Arrow ${nameType(cell.type, version)} at (${cell.x}, ${cell.y}) ${describeExtras(cell)}, which the browser version cannot keep`;
+    }
+}
 
 // A map has no lines of code behind its bytes: no line offsets, no banks, and its errors
 // carry no position
@@ -54,18 +63,19 @@ async function convertMap(source, { strict }) {
     }
 
     const { text, unsupported } = writeBrowserMap(map.version, map.cells, strict);
-    if (unsupported.length > 0 && strict) {
-        const errors = unsupported.map(({ reason, type, x, y, data }) => ({
-            message: reason === "type"
-                ? `Unsupported arrow type ${type} at (${x}, ${y})`
-                : `Arrow type ${type} at (${x}, ${y}) carries data (${data}) the browser version cannot keep`
-        }));
-        let errorMessage = `Conversion error (${errors.length} arrow${errors.length > 1 ? "s" : ""} could not be saved in the browser version; `
-            + "use \"soft\" output mode to convert the map as much as possible, replacing unsupported arrows with question marks).\n\n";
-        for (const error of errors.slice(0, listedArrows))
+    const problems = [
+        ...map.repeatedChunks.map(([x, y]) => `Chunk (${x}, ${y}) is listed twice`),
+        ...unsupported.map(cell => describeLoss(cell, map.version)),
+        ...(map.trailing > 0 ? [`The map data goes on for ${map.trailing} byte${map.trailing > 1 ? "s" : ""} after the last chunk`] : [])
+    ];
+    if (problems.length > 0 && strict) {
+        const errors = problems.map(message => ({ message }));
+        let errorMessage = `Conversion error (${errors.length} item${errors.length > 1 ? "s" : ""} could not be saved in the browser version; `
+            + "use \"soft\" output mode to convert the map as much as possible: unsupported arrows become question marks, everything else is dropped).\n\n";
+        for (const error of errors.slice(0, listedProblems))
             errorMessage += error.message + "\n";
-        if (errors.length > listedArrows)
-            errorMessage += `... and ${errors.length - listedArrows} more\n`;
+        if (errors.length > listedProblems)
+            errorMessage += `... and ${errors.length - listedProblems} more\n`;
         return { ...empty, text: errorMessage, errors };
     }
 
