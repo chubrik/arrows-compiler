@@ -31,7 +31,7 @@
 - [Стрелочки в Steam](https://store.steampowered.com/app/4210250/Logic_Arrows/) – новая версия игры,
   совместимая с браузерной
 - [GraphDLC](https://github.com/MerinPrime/GraphDLC) – необходимое расширение для браузера,
-  ускоряющее Стрелочки в 5000 раз
+  ускоряющее Стрелочки в 10 000 раз
 - [Дискорд-сервер](https://discord.gg/8FMuQuMFCN) и [Телеграм-канал](https://t.me/logic_arrows) –
   здесь обсуждают компьютеры, делятся идеями и новыми программами
 <br><br>
