@@ -31,7 +31,7 @@ a converter of maps from the Steam version to the browser one.
 - [Logic Arrows on Steam](https://store.steampowered.com/app/4210250/Logic_Arrows/) – new version
   of the game, compatible with the browser one
 - [GraphDLC](https://github.com/MerinPrime/GraphDLC) – essential browser extension that speeds up
-  Logic Arrows by 5000 times
+  Logic Arrows by 10 000 times
 - [Discord server](https://discord.gg/8FMuQuMFCN) and [Telegram channel](https://t.me/logic_arrows)
   – where people discuss the computers and share ideas and new programs
 <br><br>

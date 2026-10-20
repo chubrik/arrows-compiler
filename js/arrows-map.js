@@ -17,8 +17,9 @@ import { GameMap } from "./arrows.js";
 // map); in the body a cell may carry two bytes of data behind its flags. Version 4 (the first Steam
 // builds) keeps the flags as data | rotation << 1 | flipped << 3, version 5 as rotation |
 // flipped << 2 | data << 3; the top four bits are a state of the arrow: the colour of a wall with
-// no letter, or for a command block a 1 saying its script follows the data, as many bytes as the
-// data says. The browser keeps none of that: the bits it has no place for come out as `extra`
+// no letter, or with data a 1 saying a text follows it, as many bytes as the data says (the script
+// of a command block, the message of a message arrow). The browser keeps none of that: the bits
+// it has no place for come out as `extra`
 const layouts = {
     0: (flags) => ({ hasData: false, rotation: flags & 3, flipped: (flags & 4) !== 0, extra: flags >> 3 }),
     4: (flags) => ({ hasData: (flags & 1) !== 0, rotation: (flags >> 1) & 3, flipped: (flags & 8) !== 0, extra: flags >> 4 }),
@@ -26,7 +27,6 @@ const layouts = {
 };
 
 const browserVersion = 0;
-const commandBlockType = 33;
 
 // The browser version knows the arrows up to the wall and draws every other type as a question
 // mark; type 26 is that question mark itself. Its button (21) is a different arrow from the
@@ -208,8 +208,8 @@ function readBody(body, layout) {
                 let data = null;
                 if (hasData) {
                     data = word();
-                    if (type === commandBlockType && (extra & 1))
-                        skip(data); // the script, which the browser has no use for
+                    if (extra & 1)
+                        skip(data); // the text, which the browser has no use for
                 }
                 cells.push({ x: chunkX * 16 + (position & 0xF), y: chunkY * 16 + (position >> 4), type, rotation, flipped, data, extra });
             }
