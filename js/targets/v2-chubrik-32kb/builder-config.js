@@ -8,7 +8,7 @@ export const builderConfig = {
     top,
     bottom,
     line,
-    header: (length) => [length & 0xFF, length >> 8], // the program length, low byte first
+    header: (length) => [(length - 1) & 0xFF, (length - 1) >> 8], // the address of the last program byte, low byte first
     rowBytes: 32, // data bytes on one row of the diskette
     minBytes: 64, // the smallest payload a diskette can carry: two rows
     rowPitch: 2,  // map rows taken by one data row
