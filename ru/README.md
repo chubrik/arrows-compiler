@@ -32,7 +32,7 @@
   совместимая с браузерной
 - [GraphDLC](https://github.com/MerinPrime/GraphDLC) – необходимое расширение для браузера,
   ускоряющее Стрелочки в 10 000 раз
-- [Дискорд-сервер](https://discord.gg/8FMuQuMFCN) и [Телеграм-канал](https://t.me/logic_arrows) –
+- [Дискорд-сервер](https://discord.gg/yR8aaJWWH5) и [Телеграм-канал](https://t.me/logic_arrows) –
   здесь обсуждают компьютеры, делятся идеями и новыми программами
 <br><br>
 
