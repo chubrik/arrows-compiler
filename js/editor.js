@@ -318,7 +318,7 @@ function updateBankBoundaries(editor, lineOffsets, byteCount) {
     // Without boundaries there is nothing to fold: an assembly program has no other structure
     bankFoldingRanges = [];
     for (let i = -1; boundaries.length > 0 && i < boundaries.length; ++i) {
-        const end = i + 1 < boundaries.length ? boundaries[i + 1].afterLineNumber : findFoldEnd(model);
+        const end = i + 1 < boundaries.length ? findFoldEndAbove(model, boundaries[i + 1].afterLineNumber) : findFoldEnd(model);
         const start = findFoldStart(model, i < 0 ? 1 : boundaries[i].afterLineNumber + 1, end);
         if (end > start)
             bankFoldingRanges.push({ start, end });
@@ -411,6 +411,14 @@ function markOverflows(editor, model, overflows) {
         overflowDecorations = editor.createDecorationsCollection(decorations);
 }
 
+// The blank line right above a separator belongs to neither block: the fold stops before it,
+// so a folded block keeps that line visible as a gap under itself. Of several blank lines only
+// the last one is spared; with none, the fold reaches the separator as before
+function findFoldEndAbove(model, boundaryLine) {
+    // A separator at the very top of the file sits after line 0, which has no content to read
+    return boundaryLine > 0 && model.getLineContent(boundaryLine).trim() === "" ? boundaryLine - 1 : boundaryLine;
+}
+
 // The trailing empty lines belong to no bank: folded, the file still ends with a line to type on
 function findFoldEnd(model) {
     let end = model.getLineCount();
@@ -431,14 +439,17 @@ function bankAreaName(offset) {
     return offset < bankSize ? "the common part" : "bank " + Math.floor(offset / bankSize);
 }
 
-// The separator sticks to the bank's header: walk up over the comments and
+// A line holding nothing but a label: it belongs to the statement below it
+const labelOnlyPattern = /^[a-zA-Z_]\w*[ \t]*:[ \t]*(?:;.*)?$/;
+
+// The separator sticks to the bank's header: walk up over the labels, comments and
 // blank lines preceding the statement, then back down over the blank ones,
 // so the separator lands right before the header comments, if any
 function findBoundaryLine(model, statementLine) {
     let top = statementLine;
     while (top > 1) {
         const text = model.getLineContent(top - 1).trim();
-        if (text !== "" && !text.startsWith(";"))
+        if (text !== "" && !text.startsWith(";") && !labelOnlyPattern.test(text))
             break;
         --top;
     }
