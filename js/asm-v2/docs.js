@@ -81,6 +81,7 @@ export const instructionDocs = {
     adc: { signature: "***X***, ***Y***", text: "Adds registers ***X***, ***Y*** and the C flag, result is written to ***X***", flags: "Z, S, C, O" },
     sub: { signature: "***X***, ***Y***", text: "Subtracts register ***Y*** from register ***X***, result is written to ***X***", flags: "Z, S, C, O" },
     sbb: { signature: "***X***, ***Y***", text: "Subtracts register ***Y*** and the C flag from register ***X***, result is written to ***X***", flags: "Z, S, C, O" },
+    cmp: { signature: "***X***, ***Y***", text: "Compares registers ***X*** and ***Y*** and updates the flags. `Z:` ***X*** = ***Y***, `S:` ***X*** < ***Y*** (signed), `C:` ***X*** < ***Y*** (unsigned), `O:` signed overflow of the difference ***X*** − ***Y***", flags: "Z, S, C, O" },
     neg: { signature: "***X***", text: "Changes the sign of register ***X*** (treats the value as a signed number)", flags: "Z, S, C, O" },
     inc: { signature: "***X***", text: "Adds 1 to register ***X***", flags: "Z, S" },
     dec: { signature: "***X***", text: "Subtracts 1 from register ***X***", flags: "Z, S" },

@@ -9,11 +9,11 @@ export const Args = {
 export const argTypeNames = ["a", "b", "c", "d", "addr"];
 
 export const instructions = [
-    "adc", "add", "and", "clr", "dec", "hlt", "inc", "jc",
-    "jmp", "jnc", "jno", "jns", "jnz", "jo", "js", "jz",
-    "ld", "ldi", "mov", "neg", "nop", "not", "or", "rcl",
-    "rcr", "rnd", "sar", "sbb", "shl", "shr", "st", "sub",
-    "test", "xor"
+    "adc", "add", "and", "clr", "cmp", "dec", "hlt", "inc",
+    "jc", "jmp", "jnc", "jno", "jns", "jnz", "jo", "js",
+    "jz", "ld", "ldi", "mov", "neg", "nop", "not", "or",
+    "rcl", "rcr", "rnd", "sar", "sbb", "shl", "shr", "st",
+    "sub", "test", "xor"
 ];
 
 export const registers = ["a", "b", "c", "d"];
@@ -289,4 +289,17 @@ export const commands = [
     new Command("rnd", [Args.B], 0xED),
     new Command("rnd", [Args.C], 0xEE),
     new Command("rnd", [Args.D], 0xEF),
+
+    new Command("cmp", [Args.B, Args.A], 0xF1),
+    new Command("cmp", [Args.C, Args.A], 0xF2),
+    new Command("cmp", [Args.D, Args.A], 0xF3),
+    new Command("cmp", [Args.A, Args.B], 0xF4),
+    new Command("cmp", [Args.C, Args.B], 0xF6),
+    new Command("cmp", [Args.D, Args.B], 0xF7),
+    new Command("cmp", [Args.A, Args.C], 0xF8),
+    new Command("cmp", [Args.B, Args.C], 0xF9),
+    new Command("cmp", [Args.D, Args.C], 0xFB),
+    new Command("cmp", [Args.A, Args.D], 0xFC),
+    new Command("cmp", [Args.B, Args.D], 0xFD),
+    new Command("cmp", [Args.C, Args.D], 0xFE),
 ];
