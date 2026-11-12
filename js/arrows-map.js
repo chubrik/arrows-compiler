@@ -18,7 +18,7 @@ import { GameMap } from "./arrows.js";
 // builds) keeps the flags as data | rotation << 1 | flipped << 3, version 5 as rotation |
 // flipped << 2 | data << 3; the top four bits are a state of the arrow: the colour of a wall with
 // no letter, or with data a 1 saying a text follows it, as many bytes as the data says (the script
-// of a command block, the message of a message arrow). The browser keeps none of that: the bits
+// of a script block, the message of a message arrow). The browser keeps none of that: the bits
 // it has no place for come out as `extra`
 const layouts = {
     4: (flags) => ({ hasData: (flags & 1) !== 0, rotation: (flags >> 1) & 3, flipped: (flags & 8) !== 0, extra: flags >> 4 }),
@@ -51,7 +51,7 @@ const arrowNames = [, "arrow", "source block", "blocker", "delay arrow", "signal
     "splitter", "splitter", "pulse generator", "blue arrow", "diagonal arrow", "blue splitter", "blue splitter",
     "blue splitter", "not gate", "and gate", "XOR gate", "latch", "T flip-flop", "randomizer", "button",
     "source", "target", "directional button", "wall", "question mark", "light bulb", "light bulb", "music arrow",
-    "transmitter", "projectile", "update detector", "command block", "message", "flash", "piston", "swap",
+    "transmitter", "projectile", "update detector", "script block", "message", "flash", "piston", "swap",
     "rotator", "mirror", "motion", "motion", "logger", "interval"];
 
 // The button of the browser version and the key of the Steam version share a number
