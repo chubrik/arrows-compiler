@@ -20,6 +20,9 @@ export const registers = ["a", "b", "c", "d"];
 
 export const keywords = ["db", "equ"];
 
+// The instructions of the v2 computer: no name may take them
+export const reserved = ["clr", "cmp", "nop", "test"];
+
 class Command {
     constructor(instruction, args, opcode) {
         this.instruction = instruction;

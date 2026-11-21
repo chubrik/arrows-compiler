@@ -1,8 +1,8 @@
-import { Args, commands, instructions, keywords, registers } from "../../asm-v2/reference.js";
+import { Args, commands, instructions, keywords, registers, reserved } from "../../asm-v2/reference.js";
 import { createCompiler } from "../../asm.js";
 
 export const Compiler = createCompiler({
-    Args, commands, instructions, registers, keywords,
+    Args, commands, instructions, registers, keywords, reserved,
     memorySize: 1024,
     byteAddress: (offset) => offset < 256 ? offset : (offset & 0xFF) | 0x80, // in-bank address
     trackLineOffsets: true // the editor draws the 128-byte bank boundaries

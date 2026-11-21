@@ -12,6 +12,7 @@ class Token {
     static KEYWORD = 0x6;
     static OPERATOR = 0x7;
     static STRING = 0x8;
+    static RESERVED = 0x9;
 
     constructor(type, value, position, error = null) {
         this.type = type;
@@ -30,7 +31,7 @@ const digit = /^[0-9]$/;
 const letter = /^[a-z]$/i;
 
 export function createCompiler({
-    Args, commands, instructions, registers, keywords, memorySize, byteAddress, trackLineOffsets
+    Args, commands, instructions, registers, keywords, reserved, memorySize, byteAddress, trackLineOffsets
 }) {
 
     class Tokenizer {
@@ -114,6 +115,8 @@ export function createCompiler({
                 type = Token.REGISTER;
             else if (keywords.includes(name))
                 type = Token.KEYWORD;
+            else if (reserved.includes(name))
+                type = Token.RESERVED;
             return new Token(type, name, position);
         }
 
@@ -292,7 +295,8 @@ export function createCompiler({
 
         parseValue(resolveCallback, required = false) {
             let token = this.tokenizer.lookahead();
-            if (token.type === Token.NAME) {
+            if (token.type === Token.NAME || token.type === Token.RESERVED) {
+                this.checkReserved(token);
                 const value = this.names[token.value];
                 if (value != null)
                     resolveCallback(value);
@@ -311,6 +315,11 @@ export function createCompiler({
             }
             this.tokenizer.next();
             return token;
+        }
+
+        checkReserved(token) {
+            if (token.type === Token.RESERVED)
+                this.errors.push(new AsmError(token.position, `'${token.value}' is reserved and cannot be used as a name`));
         }
 
         parseNumber(token) {
@@ -437,7 +446,8 @@ export function createCompiler({
                                 arg.resolveCallback = (value) => this.bytes[offset] = value & 0xFF;
                             }
                     }
-                } else if (token.type === Token.NAME) {
+                } else if (token.type === Token.NAME || token.type === Token.RESERVED) {
+                    this.checkReserved(token);
                     const name = token.value;
                     const { position } = token;
 

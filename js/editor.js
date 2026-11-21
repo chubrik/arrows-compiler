@@ -3,10 +3,10 @@ import { stripBom } from "./text.js";
 
 // Everything the editor knows about one assembly dialect, bundled; the page picks the
 // current pack through setConversion, matching the compiler that fills the output panel
-function dialectPack(Compiler, { argTypeNames, commands, instructions, registers, keywords }, docs) {
+function dialectPack(Compiler, { argTypeNames, commands, instructions, registers, keywords, reserved }, docs) {
     return {
         Compiler, argTypeNames, commands, instructions, registers, keywords, docs,
-        reservedNames: new Set([...instructions, ...registers, ...keywords])
+        reservedNames: new Set([...instructions, ...registers, ...keywords, ...reserved])
     };
 }
 
