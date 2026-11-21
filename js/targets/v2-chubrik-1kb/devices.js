@@ -29,9 +29,9 @@ export const ioPort = {
     describeLoaded: describeDevices
 };
 
-export function bankPort(bits) {
+export function bankPort(bits, port = 0x3F) {
     return {
-        doc: `**Port 3F** — the memory bank: the bank number written, 1 to ${2 ** bits - 1}, `
+        doc: `**Port ${port.toString(16).toUpperCase()}** — the memory bank: the bank number written, 1 to ${2 ** bits - 1}, `
             + "connects that bank to the addresses `80...FF`"
             + (bits < 8 ? `; only the low ${bits} bits of the number count` : "")
             + "; `0` connects bank 1, which is also connected while nothing has been written",

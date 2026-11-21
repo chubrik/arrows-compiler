@@ -33,7 +33,7 @@ export const inputs = {
             "32k": { label: "Diskette · Chubrik 32 KB", target: "v2-chubrik-32kb", render: "diskette" },
             "acidnnk": { label: "Diskette · Acidnnk 1 KB", target: "v2-acidnnk-1kb", render: "diskette", largerMemory: "acidnnk-32k" },
             "acidnnk-32k": { label: "Diskette · Acidnnk 32 KB", target: "v2-acidnnk-32kb", render: "diskette" },
-            "moseev": { label: "Diskette · Moseev 256 B", target: "v2-moseev-256b", render: "diskette" },
+            "moseev": { label: "Diskette · Moseev 1 KB", target: "v2-moseev-1kb", render: "diskette" },
             // The bytes belong to the architecture and are the same for every computer the program
             // fits in; the widest memory keeps the limit out of the way
             "hex": { label: "HEX", target: "v2-chubrik-32kb", render: "hex" }

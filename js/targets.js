@@ -13,9 +13,9 @@ import { portDocs as v2Chubrik1kbPorts } from "./targets/v2-chubrik-1kb/devices.
 import { builderConfig as v2Chubrik32kbDiskette } from "./targets/v2-chubrik-32kb/builder-config.js";
 import { Compiler as v2Chubrik32kbCompiler } from "./targets/v2-chubrik-32kb/compiler.js";
 import { portDocs as v2Chubrik32kbPorts } from "./targets/v2-chubrik-32kb/devices.js";
-import { builderConfig as v2Moseev256bDiskette } from "./targets/v2-moseev-256b/builder-config.js";
-import { Compiler as v2Moseev256bCompiler } from "./targets/v2-moseev-256b/compiler.js";
-import { portDocs as v2Moseev256bPorts } from "./targets/v2-moseev-256b/devices.js";
+import { builderConfig as v2Moseev1kbDiskette } from "./targets/v2-moseev-1kb/builder-config.js";
+import { Compiler as v2Moseev1kbCompiler } from "./targets/v2-moseev-1kb/compiler.js";
+import { portDocs as v2Moseev1kbPorts } from "./targets/v2-moseev-1kb/devices.js";
 
 // Every computer the site builds for, named architecture-author-memory: a processor with its
 // memory model (the compiler), its devices (the port docs) and the diskette format of its
@@ -26,5 +26,5 @@ export const targets = {
     "v2-chubrik-32kb": { Compiler: v2Chubrik32kbCompiler, portDocs: v2Chubrik32kbPorts, builderConfig: v2Chubrik32kbDiskette },
     "v2-acidnnk-1kb": { Compiler: v2Acidnnk1kbCompiler, portDocs: v2Acidnnk1kbPorts, builderConfig: v2Acidnnk1kbDiskette },
     "v2-acidnnk-32kb": { Compiler: v2Acidnnk32kbCompiler, portDocs: v2Acidnnk32kbPorts, builderConfig: v2Acidnnk32kbDiskette },
-    "v2-moseev-256b": { Compiler: v2Moseev256bCompiler, portDocs: v2Moseev256bPorts, builderConfig: v2Moseev256bDiskette }
+    "v2-moseev-1kb": { Compiler: v2Moseev1kbCompiler, portDocs: v2Moseev1kbPorts, builderConfig: v2Moseev1kbDiskette }
 };
