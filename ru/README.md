@@ -1,7 +1,7 @@
 # <a href="../README.md"><img src="https://raw.githubusercontent.com/chubrik/LogicArrows/refs/heads/main/img/arrowcat-blue.svg" width="30"></a> Компилятор стрелочек
 <sub>[![LogicArrows](https://img.shields.io/badge/logic--arrows-compiler-blue?logo=data:image/svg%2Bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZlcnNpb249IjEiIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIj48cGF0aCBmaWxsPSIjNTAwIiBkPSJtOTkgMWMtMC44Ny0wLjg3LTIuMi0xLjMtMy42LTAuODJsLTc3IDI1Yy00LjkgMS43LTYuMyA3LjgtMi43IDExbDE1IDE1LTI5IDI5Yy0yLjcgMi43LTIuNyA3LjEgMCA5LjhsNyA3YzIuNyAyLjcgNy4xIDIuNyA5LjggMGwyOS0yOSAxNSAxNWMzLjcgMy43IDkuOCAyLjIgMTEtMi43bDI1LTc3YzAuNDktMS4zIDAuMDQ1LTIuNy0wLjgyLTMuNnoiIHN0cm9rZS13aWR0aD0iMS43Ii8+PC9zdmc+)](https://logic-arrows.io/)</sub>
 &nbsp;&nbsp;&nbsp;
-🌐 [English](../README.md) | Русский
+🌐 [English](../README.md) | **Русский**
 
 Этот онлайн-компилятор собирает программы для различных компьютеров, построенных в
 [«Стрелочках»](https://logic-arrows.io/) — браузерной игре, где из простых стрелочек на клеточном
